@@ -919,7 +919,8 @@ function ExtensionDetail(props: {
   const isBundled = props.entry.repoUrl === null;
   const installed = () => installedIds().has(manifest.id);
   const isPack = isExtensionPack(manifest);
-  const needsHost = !isPack && !!manifest.main;
+  // available === false means stub/WIP — no .sinxt exists yet. Absent means available.
+  const needsHost = !isPack && !!manifest.main && manifest.available === false;
 
   // README: fetch on demand; undefined = loading, null = not found, string = content
   const [readmeContent, setReadmeContent] = createSignal<string | null | undefined>(undefined);

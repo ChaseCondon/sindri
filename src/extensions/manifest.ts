@@ -158,6 +158,7 @@ export interface ExtensionManifest {
     notice?: string;      // copyright/attribution notice text
   }>;
   main?: string;          // entry bundle — present only for code-bearing plugins; absent = data-only
+  available?: boolean;    // false = not yet installable (stub/WIP); absent means true
 }
 
 // Lean wire format for index.json (ADR-0020 §3).
