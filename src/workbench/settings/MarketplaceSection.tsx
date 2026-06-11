@@ -169,18 +169,22 @@ async function fetchAllEntries(): Promise<MarketplaceEntry[]> {
 
 let _allEntries: MarketplaceEntry[] = [];
 
-async function doInstall(entry: MarketplaceEntry): Promise<void> {
+async function doInstall(entry: MarketplaceEntry): Promise<boolean> {
   const { item, repoUrl } = entry;
   const { contributes, id, extensionPack } = item.manifest;
 
-  // Extension pack — install each listed extension
+  // Extension pack — install each member; only mark pack installed if all succeed.
   if (extensionPack?.length) {
+    let allOk = true;
     for (const memberId of extensionPack) {
       const memberEntry = _allEntries.find((e) => e.item.manifest.id === memberId);
-      if (memberEntry) await doInstall(memberEntry);
+      if (memberEntry) {
+        const ok = await doInstall(memberEntry);
+        if (!ok) allOk = false;
+      }
     }
-    if (repoUrl) installExtension(id, repoUrl, item.folderPath, item.manifest);
-    return;
+    if (allOk && repoUrl) installExtension(id, repoUrl, item.folderPath, item.manifest);
+    return allOk;
   }
 
   for (const theme of contributes.themes ?? []) {
@@ -194,7 +198,7 @@ async function doInstall(entry: MarketplaceEntry): Promise<void> {
       registerTheme(def);
     } catch (err) {
       console.error("[Marketplace] failed to install theme", theme.id, err);
-      return;
+      return false;
     }
   }
 
@@ -210,7 +214,7 @@ async function doInstall(entry: MarketplaceEntry): Promise<void> {
       registerIconTheme(def);
     } catch (err) {
       console.error("[Marketplace] failed to install icon theme", iconTheme.id, err);
-      return;
+      return false;
     }
   }
 
@@ -226,7 +230,7 @@ async function doInstall(entry: MarketplaceEntry): Promise<void> {
       registerUiIconPack(def);
     } catch (err) {
       console.error("[Marketplace] failed to install UI icon pack", uiPack.id, err);
-      return;
+      return false;
     }
   }
 
@@ -237,13 +241,14 @@ async function doInstall(entry: MarketplaceEntry): Promise<void> {
     if (sinxtPath) {
       installExtension(id, repoUrl, item.folderPath, item.manifest, sinxtPath);
       await activateExtensionFromSinxt(sinxtPath, item.manifest);
-      return;
+      return true;
     }
     console.error(`[Marketplace] failed to download .sinxt for ${id}`);
-    return;
+    return false;
   }
 
   if (repoUrl) installExtension(id, repoUrl, item.folderPath, item.manifest);
+  return true;
 }
 
 function doUninstall(entry: MarketplaceEntry): void {
@@ -688,7 +693,8 @@ export function MarketplaceSection() {
 
   const searched = createMemo(() => {
     const q = search().trim();
-    let list = entries() ?? [];
+    // Never show pack/collection members in the top-level list — they're accessible via the parent pack detail.
+    let list = (entries() ?? []).filter((e) => !e.item.isMember);
     if (q) list = list.filter((e) => fuzzyMatch(q, e.item));
     if (showInstalled()) list = list.filter((e) => e.repoUrl === null || installedIds().has(e.item.manifest.id));
     return list;

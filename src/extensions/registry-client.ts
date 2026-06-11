@@ -210,6 +210,10 @@ async function enrichLeanIndex(lean: RegistryLeanIndex, repoUrl: string): Promis
     return true;
   });
 
+  // Tag discovered members so the marketplace can exclude them from the top-level list
+  // while keeping them in _allEntries for pack detail resolution.
+  for (const e of freshMembers) e.isMember = true;
+
   return [...topEntries, ...freshMembers];
 }
 

@@ -183,6 +183,7 @@ export interface RegistryIndexEntry {
   tags: string[];
   readmeContent?: string;  // loaded on demand, not from index.json
   folderPath: string;
+  isMember?: boolean;      // true for extensions discovered as pack/collection members — not shown top-level
 }
 
 export type RegistryIndex = RegistryIndexEntry[];
