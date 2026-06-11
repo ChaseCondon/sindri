@@ -1,0 +1,146 @@
+# sindri.toml — example polyglot project manifest
+#
+# This file is committed and team-shared. It declares the project's identity,
+# execution environments, toolchain bindings, and extension dependencies.
+#
+# Machine-local overrides live in .sindri/local.toml (gitignored).
+# Window/layout state lives in .sindri/session.json (gitignored, never merged here).
+#
+# Schema: ADR-0012 | Sindri Adapter Protocol: ADR-0005
+# See docs/adr/0012-project-file-format.md for full schema reference.
+
+# Schema major version. Sindri refuses a higher major; tolerates unknown keys within v1.
+version = "1"
+
+# ── Project identity ─────────────────────────────────────────────────────────
+
+[project]
+name = "acme-platform"
+# Stable UUIDv4, generated once at project creation ("Convert to Sindri project").
+# Survives folder renames and moves; keys per-project local state off identity, not path.
+id   = "5f3c9b2a-7e41-4d8a-9c10-2b6e8f4a1d33"
+description = "Acme platform — Tauri 2 desktop app (Rust core + SolidJS frontend)"
+# Fallback environment for any toolchain/run/test that does not name one explicitly.
+default_environment = "dev-container"
+
+# ── Execution environments (ADR-0009) ────────────────────────────────────────
+#
+# All toolchain processes (LSP, DAP, run/test adapters, ripgrep) spawn INSIDE
+# the named environment. The editor UI and CM6 buffers always stay local.
+# Loose files (outside any project root) are always "local".
+
+[environments.local]
+# The only v0 backend; always available. No extra config needed.
+type = "local"
+
+[environments.dev-container]
+# Container environment via docker-compose. The adapter, LSP server, and DAP
+# adapter all spawn inside the "api" service, not on the host.
+type    = "container"
+compose = "docker-compose.yml"
+service = "api"
+# Path map: project root on the host ↔ /workspace inside the container.
+# Sindri uses this to translate file paths in both directions (host→target,
+# target→host). Longest-prefix match when multiple pairs are present.
+# Default when omitted: "." ↔ "/workspace".
+[[environments.dev-container.paths]]
+host   = "."
+target = "/workspace"
+
+[environments.ci]
+# SSH environment for running the full integration suite on a dedicated box.
+type = "ssh"
+host = "ci-runner.internal"
+user = "deploy"
+[[environments.ci.paths]]
+host   = "."
+target = "/home/deploy/acme-platform"
+
+# ── Toolchain bindings (adapter-first) ───────────────────────────────────────
+#
+# Each [toolchains.<name>] binds a Sindri Adapter Protocol adapter to the project.
+# The adapter auto-discovers run targets and test suites from the toolchain's own
+# metadata — no manual [run] or [test] entries needed for the common case.
+#
+# Language pack extensions (declared in [extensions] below) bundle the LSP server,
+# DAP adapter, and Tree-sitter grammar for each language.
+
+[toolchains.rust]
+adapter     = "sindri.adapter.cargo"
+environment = "dev-container"
+# Auto-discovers from `cargo metadata`:
+#   Run targets  → every [[bin]] + src/bin/* → surfaces as "cargo run --bin <x>"
+#   Test suites  → unit tests + tests/** integration → runs via cargo-nextest
+
+[toolchains.web]
+adapter     = "sindri.adapter.npm"
+environment = "local"
+# Auto-discovers from package.json "scripts":
+#   Run targets  → "dev", "build", "preview" appear in the Run UI automatically
+
+[toolchains.web-tests]
+adapter     = "sindri.adapter.vitest"
+environment = "local"
+# Auto-discovers via `vitest list`; runs with --reporter=json for structured results.
+
+# ── Run config overrides / additions (optional) ──────────────────────────────
+#
+# [run.<name>] entries add or override individual run configurations.
+# They reference an adapter task, not a raw shell command — Sindri always
+# mediates execution. For raw scripts, use the built-in "shell" adapter (below).
+
+[run.api-release]
+# Override: build the API in release mode instead of the auto-discovered debug config.
+toolchain = "rust"
+task      = "run"
+args      = ["--release", "--bin", "api"]
+cwd       = "."
+env       = { RUST_LOG = "info" }
+
+[run.smoke]
+# Escape hatch: arbitrary shell script via the built-in "shell" adapter.
+# Use sparingly — prefer a real adapter task for structured output in the UI.
+adapter = "shell"
+command = "./scripts/smoke.sh"
+env     = { TARGET = "local" }
+
+# ── Test suite overrides / additions (optional) ──────────────────────────────
+
+[test.rust-integration]
+# Narrow the auto-discovered Rust suite to only the integration tests.
+toolchain = "rust"
+include   = ["tests/**"]
+
+[test.web-unit]
+# Add explicit exclude globs on top of the auto-discovered vitest suite.
+toolchain = "web-tests"
+exclude   = ["**/*.stories.tsx", "**/*.e2e.ts"]
+
+# ── Project-scoped settings ───────────────────────────────────────────────────
+#
+# Override editor and tool settings for this project.
+# These merge with (and override) the user's global Sindri settings.
+
+[settings.editor]
+tab_size       = 4
+format_on_save = true
+
+[settings.search]
+# Directories excluded from project-wide ripgrep search.
+exclude = ["target", "dist", "node_modules", ".sindri"]
+
+# ── Required extensions / adapters ───────────────────────────────────────────
+#
+# Sindri prompts to install missing extensions on project open.
+# Language packs bundle: Tree-sitter grammar + LSP server + DAP adapter.
+# Adapter extensions implement the Sindri Adapter Protocol for a toolchain.
+
+[extensions]
+# Language packs
+"sindri.lang.rust"       = "*"    # rust-analyzer (LSP) + CodeLLDB (DAP) + tree-sitter-rust
+"sindri.lang.web"        = "*"    # vtsls + eslint-lsp (LSP) + js-debug (DAP) + tree-sitter-tsx
+
+# Toolchain adapters
+"sindri.adapter.cargo"   = "^1.0"
+"sindri.adapter.npm"     = "^1.0"
+"sindri.adapter.vitest"  = "^1.0"

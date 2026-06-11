@@ -1,0 +1,16 @@
+{
+  "id": "sindri.sindri-light",
+  "name": "Sindri Light",
+  "version": "0.1.0",
+  "publisher": "sindri",
+  "description": "Sindri's built-in light colour theme — clean whites with a blue accent.",
+  "categories": ["Color Theme"],
+  "license": "AGPL-3.0-only",
+  "permissions": [],
+  "engines": { "sindri": ">=0.1.0" },
+  "contributes": {
+    "themes": [
+      { "id": "sindri-light", "name": "Sindri Light", "kind": "light", "path": "light.json" }
+    ]
+  }
+}

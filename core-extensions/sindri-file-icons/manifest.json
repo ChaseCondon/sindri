@@ -1,0 +1,30 @@
+{
+  "id": "sindri.sindri-file-icons",
+  "name": "Sindri File Icons",
+  "version": "0.1.0",
+  "publisher": "sindri",
+  "description": "Sindri's built-in file icon set — 108 file and folder icons using Phosphor shapes and simple-icons brand logos.",
+  "categories": ["File Icon Theme"],
+  "license": "AGPL-3.0-only",
+  "permissions": [],
+  "engines": { "sindri": ">=0.1.0" },
+  "credits": [
+    {
+      "name": "Phosphor Icons",
+      "spdx": "MIT",
+      "url": "https://phosphoricons.com",
+      "notice": "Copyright (c) 2020 Phosphor Icons"
+    },
+    {
+      "name": "Simple Icons",
+      "spdx": "CC0-1.0",
+      "url": "https://simpleicons.org",
+      "notice": "Individual brand icons are the trademarks of their respective owners. See https://simpleicons.org/legal-notice"
+    }
+  ],
+  "contributes": {
+    "iconThemes": [
+      { "id": "sindri-file-icons", "name": "Sindri File Icons", "kind": "color", "path": "icons.json" }
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "@sindri/api",
+  "version": "0.1.0",
+  "description": "Sindri extension SDK — ambient type declarations (ADR-0015) and manifest JSON schema.",
+  "types": "index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "exports": {
+    "./manifest.schema.json": "./manifest.schema.json",
+    "./helpers": {
+      "types": "./dist/helpers.d.ts",
+      "default": "./dist/helpers.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "helpers": ["./dist/helpers.d.ts"]
+    }
+  },
+  "private": true
+}

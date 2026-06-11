@@ -1,0 +1,68 @@
+{
+  "id": "sindri-ui-icons",
+  "name": "Sindri UI Icons",
+  "kind": "mono",
+  "fileExtensions": {},
+  "fileNames": {},
+  "defaults": {
+    "file": "file-default",
+    "folder": "file-default",
+    "folderOpen": "file-default"
+  },
+  "icons": {
+    "file-default": {
+      "path": "icons/explorer.svg"
+    },
+    "explorer": {
+      "path": "icons/explorer.svg"
+    },
+    "search": {
+      "path": "icons/search.svg"
+    },
+    "git": {
+      "path": "icons/git.svg"
+    },
+    "run": {
+      "path": "icons/run.svg"
+    },
+    "debug": {
+      "path": "icons/debug.svg"
+    },
+    "test": {
+      "path": "icons/test.svg"
+    },
+    "extensions": {
+      "path": "icons/extensions.svg"
+    },
+    "terminal": {
+      "path": "icons/terminal.svg"
+    },
+    "problems": {
+      "path": "icons/problems.svg"
+    },
+    "output": {
+      "path": "icons/output.svg"
+    },
+    "database": {
+      "path": "icons/database.svg"
+    },
+    "remote": {
+      "path": "icons/remote.svg"
+    },
+    "settings": {
+      "path": "icons/settings.svg"
+    },
+    "containers": {
+      "path": "icons/containers.svg"
+    },
+    "snippets": {
+      "path": "icons/snippets.svg"
+    },
+    "bookmarks": {
+      "path": "icons/bookmarks.svg"
+    },
+    "ext-logs": {
+      "path": "icons/ext-logs.svg"
+    }
+  }
+}

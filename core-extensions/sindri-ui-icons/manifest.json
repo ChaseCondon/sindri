@@ -1,0 +1,24 @@
+{
+  "id": "sindri.sindri-ui-icons",
+  "name": "Sindri UI Icons",
+  "version": "0.1.0",
+  "publisher": "sindri",
+  "description": "Sindri's built-in activity bar and toolbar icon set — Phosphor regular-weight glyphs as placeholders until custom runic icons are designed.",
+  "categories": ["UI Icon Theme"],
+  "license": "AGPL-3.0-only",
+  "permissions": [],
+  "engines": { "sindri": ">=0.1.0" },
+  "credits": [
+    {
+      "name": "Phosphor Icons",
+      "spdx": "MIT",
+      "url": "https://phosphoricons.com",
+      "notice": "Copyright (c) 2020 Phosphor Icons"
+    }
+  ],
+  "contributes": {
+    "uiIconPacks": [
+      { "id": "sindri-ui-icons", "name": "Sindri UI Icons", "path": "ui-pack.json" }
+    ]
+  }
+}

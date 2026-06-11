@@ -1,0 +1,312 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/sindri-ide/extensions/manifest.schema.json",
+  "title": "Sindri Extension Manifest",
+  "description": "Schema for a Sindri extension manifest.json file.",
+  "type": "object",
+  "required": ["id", "name", "version", "publisher", "description", "categories", "permissions", "engines", "contributes"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Globally unique extension identifier in 'publisher.name' dot-notation. Example: 'sindri.aurora-theme'",
+      "pattern": "^[a-z0-9-]+\\.[a-z0-9-]+$"
+    },
+    "name": {
+      "type": "string",
+      "description": "Human-readable extension name shown in the marketplace. Example: 'Sindri Aurora'"
+    },
+    "version": {
+      "type": "string",
+      "description": "Semantic version of this manifest. Must match a git tag in the extension repository. Example: '1.0.0'",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "publisher": {
+      "type": "string",
+      "description": "Publisher identifier — matches the prefix of 'id'. Example: 'sindri'"
+    },
+    "description": {
+      "type": "string",
+      "description": "One-sentence description shown in the marketplace card."
+    },
+    "categories": {
+      "type": "array",
+      "description": "Marketplace browsing facets. An extension may belong to multiple categories.",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "enum": [
+          "Color Theme",
+          "File Icon Theme",
+          "UI Icon Theme",
+          "Language Support",
+          "Language Pack",
+          "Test & Task Adapter",
+          "UI Extension",
+          "Extension Pack",
+          "Icon Theme Base"
+        ],
+        "description": "Color Theme — UI palette (ThemeDef JSON); File Icon Theme — file tree icons; UI Icon Theme — activity bar / toolbar glyphs; Language Support — Tree-sitter grammar + LSP/DAP adapters; Language Pack — human-language UI localisation; Test & Task Adapter — test runner / task adapter; UI Extension — workbench panels, status bar items, editor decorations (requires extension host); Extension Pack — installs a curated set of extensions together; Icon Theme Base — shared icon templates inherited by child icon themes via `extends`"
+      }
+    },
+    "permissions": {
+      "type": "array",
+      "description": "sindri.* API namespaces this extension may call (ADR-0015 §6). Empty array for data-only extensions (themes, icons). Example: ['sindri.workspace', 'sindri.terminal']",
+      "items": {
+        "type": "string",
+        "pattern": "^sindri\\."
+      }
+    },
+    "engines": {
+      "type": "object",
+      "description": "Minimum Sindri version this extension is compatible with.",
+      "required": ["sindri"],
+      "additionalProperties": false,
+      "properties": {
+        "sindri": {
+          "type": "string",
+          "description": "Semver range. Use '>=0.1.0' for extensions compatible with all 0.x releases. Example: '>=0.2.0'",
+          "examples": [">=0.1.0", ">=1.0.0", "^1.2.0"]
+        }
+      }
+    },
+    "contributes": {
+      "type": "object",
+      "description": "What this extension provides. All fields are optional; include only what applies.",
+      "additionalProperties": false,
+      "properties": {
+        "themes": {
+          "type": "array",
+          "description": "Colour theme definitions (data-only, no extension host required).",
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "kind", "path"],
+            "additionalProperties": false,
+            "properties": {
+              "id":   { "type": "string", "description": "Unique theme ID. Example: 'my-theme-dark'" },
+              "name": { "type": "string", "description": "Display name. Example: 'My Theme Dark'" },
+              "kind": { "type": "string", "enum": ["light", "dark"], "description": "Controls which CSS variable set is applied." },
+              "path": { "type": "string", "description": "Path to the ThemeDef JSON file, relative to this extension folder. Example: 'aurora-dark.json'" }
+            }
+          }
+        },
+        "uiIconPacks": {
+          "type": "array",
+          "description": "UI icon pack definitions — activity bar and toolbar glyphs (data-only, no extension host required).",
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "path"],
+            "additionalProperties": false,
+            "properties": {
+              "id":   { "type": "string" },
+              "name": { "type": "string" },
+              "path": { "type": "string", "description": "Path to the UiIconPackDef JSON file." }
+            }
+          }
+        },
+        "iconThemes": {
+          "type": "array",
+          "description": "File icon theme definitions (data-only, no extension host required).",
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "kind", "path"],
+            "additionalProperties": false,
+            "properties": {
+              "id":   { "type": "string" },
+              "name": { "type": "string" },
+              "kind": { "type": "string", "enum": ["color", "mono"], "description": "'color' — full-colour SVG icons; 'mono' — uses currentColor, respects the theme accent." },
+              "path": { "type": "string", "description": "Path to the IconThemeDef JSON file." }
+            }
+          }
+        },
+        "lsp": {
+          "type": "array",
+          "description": "Language Server Protocol adapters (requires extension host).",
+          "items": {
+            "type": "object",
+            "required": ["id", "languageId", "launch"],
+            "additionalProperties": false,
+            "properties": {
+              "id":         { "type": "string" },
+              "languageId": { "type": "string", "description": "CodeMirror / Tree-sitter language identifier. Example: 'rust'" },
+              "launch": {
+                "type": "object",
+                "required": ["command"],
+                "properties": {
+                  "command": { "type": "string" },
+                  "args":    { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            }
+          }
+        },
+        "dap": {
+          "type": "array",
+          "description": "Debug Adapter Protocol adapters (requires extension host).",
+          "items": {
+            "type": "object",
+            "required": ["id", "languageId", "launch"],
+            "additionalProperties": false,
+            "properties": {
+              "id":         { "type": "string" },
+              "languageId": { "type": "string" },
+              "launch": {
+                "type": "object",
+                "required": ["command"],
+                "properties": {
+                  "command": { "type": "string" },
+                  "args":    { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            }
+          }
+        },
+        "grammars": {
+          "type": "array",
+          "description": "Tree-sitter / Lezer grammar files (requires extension host).",
+          "items": {
+            "type": "object",
+            "required": ["languageId", "path"],
+            "additionalProperties": false,
+            "properties": {
+              "languageId": { "type": "string" },
+              "path":       { "type": "string" }
+            }
+          }
+        },
+        "taskAdapters": {
+          "type": "array",
+          "description": "Task runner adapters (requires extension host).",
+          "items": {
+            "type": "object",
+            "required": ["id", "languageId"],
+            "additionalProperties": false,
+            "properties": {
+              "id":         { "type": "string" },
+              "languageId": { "type": "string" }
+            }
+          }
+        },
+        "treeViews": {
+          "type": "array",
+          "description": "Tree-view panels contributed by this extension (ADR-0026 Tier 1). Each entry declares a panel that the extension host will register when sindri.ui.registerTreeView(id, …) is called from activate().",
+          "items": {
+            "type": "object",
+            "required": ["id", "title"],
+            "additionalProperties": false,
+            "properties": {
+              "id":          { "type": "string", "description": "Tree-view identifier — passed to sindri.ui.registerTreeView. Must be unique within the extension. Example: 'my-ext.my-tree'" },
+              "title":       { "type": "string", "description": "Panel title shown in the dock tab. Example: 'My Tree'" },
+              "icon":        { "type": "string", "description": "Path to the SVG icon file, relative to the extension folder. Example: 'icons/panel.svg'. Defaults to a generic list icon." },
+              "defaultDock": {
+                "type": "string",
+                "enum": ["left-top", "left-bottom", "right-top", "right-bottom", "bottom"],
+                "description": "Which dock region the panel initially appears in. Defaults to 'left-top'."
+              }
+            }
+          }
+        },
+        "webviewPanels": {
+          "type": "array",
+          "description": "Webview panels contributed by this extension (ADR-0026 Tier 2). Each entry declares a panel backed by a null-origin iframe; the extension returns the full HTML from provider.getHtml().",
+          "items": {
+            "type": "object",
+            "required": ["id", "title"],
+            "additionalProperties": false,
+            "properties": {
+              "id":          { "type": "string", "description": "Panel identifier — passed to sindri.ui.registerWebviewPanel. Must be unique within the extension. Example: 'my-ext.my-panel'" },
+              "title":       { "type": "string", "description": "Panel title shown in the dock tab. Example: 'My Panel'" },
+              "icon":        { "type": "string", "description": "Path to the SVG icon file, relative to the extension folder. Example: 'icons/panel.svg'. Defaults to a generic panel icon." },
+              "defaultDock": {
+                "type": "string",
+                "enum": ["left-top", "left-bottom", "right-top", "right-bottom", "bottom"],
+                "description": "Which dock region the panel initially appears in. Defaults to 'right-top'."
+              }
+            }
+          }
+        },
+        "editors": {
+          "type": "array",
+          "description": "Custom editor registrations (ADR-0028 Surface B). Each entry declares a file-type selector; the extension calls sindri.editor.registerEditor(id, provider) from activate().",
+          "items": {
+            "type": "object",
+            "required": ["id", "displayName", "selector"],
+            "additionalProperties": false,
+            "properties": {
+              "id":          { "type": "string", "description": "Editor identifier — passed to sindri.editor.registerEditor. Example: 'my-ext.my-editor'" },
+              "displayName": { "type": "string", "description": "Name shown in the 'Open with…' picker. Example: 'Markdown Preview'" },
+              "selector": {
+                "type": "array",
+                "description": "File patterns this editor handles. At least one must match for the editor to be offered.",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "filenamePattern": { "type": "string", "description": "Glob pattern matched against the file name (not full path). Example: '*.md'" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "configuration": {
+          "type": "object",
+          "description": "Settings schema contributed to the Settings panel (ADR-0021). Keys are setting identifiers.",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["type"],
+            "properties": {
+              "type":        { "type": "string", "enum": ["string", "boolean", "number", "enum"] },
+              "default":     {},
+              "description": { "type": "string" },
+              "enum":        { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    "main": {
+      "type": "string",
+      "description": "Entry-point bundle path for code-bearing extensions (requires extension host). Omit entirely for data-only extensions (themes, icons). Example: 'dist/extension.js'"
+    },
+    "extensionPack": {
+      "type": "array",
+      "description": "Extension IDs bundled by this Extension Pack. Installing the pack installs each listed extension individually.",
+      "items": { "type": "string", "pattern": "^[a-z0-9-]+\\.[a-z0-9-]+$" }
+    },
+    "tags": {
+      "type": "array",
+      "description": "Optional search tags shown in the marketplace. Lowercase, hyphen-separated. Example: ['dark', 'purple']",
+      "items": { "type": "string" }
+    },
+    "extends": {
+      "type": "string",
+      "description": "ID of a base extension this one inherits from (ADR-0032). The runtime merges the base icons.json (child-wins on field conflicts) and injects `variables` as CSS custom properties at activation. Only valid for icon theme extensions.",
+      "pattern": "^[a-z0-9-]+\\.[a-z0-9-]+$"
+    },
+    "variables": {
+      "type": "object",
+      "description": "Palette overrides passed to the base extension (requires 'extends', ADR-0032). Keys map to CSS custom property names injected at activation (e.g. 'folder-base' → '--folder-base'); values are CSS color strings.",
+      "additionalProperties": { "type": "string" }
+    },
+    "license": {
+      "type": "string",
+      "description": "SPDX license identifier for this extension's own license. Example: 'AGPL-3.0-only', 'MIT', 'Apache-2.0'"
+    },
+    "credits": {
+      "type": "array",
+      "description": "Third-party assets included in this extension that require attribution. Displayed in the extension detail panel under 'Credits & Licenses'.",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "additionalProperties": false,
+        "properties": {
+          "name":   { "type": "string", "description": "Name of the credited work or project. Example: 'Phosphor Icons'" },
+          "spdx":   { "type": "string", "description": "SPDX license identifier. Example: 'MIT', 'ISC', 'CC0-1.0'" },
+          "url":    { "type": "string", "description": "URL to the source project or license text." },
+          "notice": { "type": "string", "description": "Copyright or attribution notice text. Example: 'Copyright (c) 2020 Phosphor Icons'" }
+        }
+      }
+    }
+  }
+}

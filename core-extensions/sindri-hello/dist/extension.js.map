@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../src/extension.ts"],
+  "sourcesContent": ["/**\n * sindri-hello \u2014 M1 proof extension.\n *\n * Registers `hello.ping` to exercise the full host spine:\n *   bundle load \u2192 activate() \u2192 sindri.commands.register \u2192 execute_command \u2192 return to webview.\n *\n * M2 addition: `hello.readFile` exercises the async env bridge (sindri.env.fs.read).\n */\n\nexport function activate(context: ExtensionContext): void {\n  context.subscriptions.push(\n    sindri.commands.register(\"hello.ping\", () => \"pong from Deno\") as unknown as { dispose(): void },\n  );\n}\n\nexport function deactivate(): void {\n  // subscriptions are cleaned up by the host via context.subscriptions\n}\n"],
+  "mappings": ";;;;;;;;;;;;;;;;;;;;;AAAA;AAAA;AAAA;AAAA;AAAA;AASO,WAAS,SAAS,SAAiC;AACxD,YAAQ,cAAc;AAAA,MACpB,OAAO,SAAS,SAAS,cAAc,MAAM,gBAAgB;AAAA,IAC/D;AAAA,EACF;AAEO,WAAS,aAAmB;AAAA,EAEnC;",
+  "names": []
+}

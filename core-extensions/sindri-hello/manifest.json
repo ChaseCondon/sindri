@@ -1,0 +1,12 @@
+{
+  "id": "sindri.hello",
+  "name": "Sindri Hello",
+  "version": "0.1.0",
+  "publisher": "sindri",
+  "description": "Proof-of-concept extension exercising the QuickJS host (ADR-0015 M1 slice).",
+  "categories": ["Other"],
+  "permissions": ["env.fs"],
+  "engines": { "sindri": ">=0.1.0" },
+  "main": "dist/extension.js",
+  "contributes": {}
+}

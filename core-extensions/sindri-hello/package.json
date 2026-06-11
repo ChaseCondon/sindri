@@ -1,0 +1,5 @@
+{
+  "name": "sindri-hello",
+  "private": true,
+  "type": "module"
+}

@@ -1,0 +1,26 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!--
+    Sindri rune — angular S (Sowilō-inspired).
+    Path reads: top-right → left → down → right → down → left
+    Creates the angular S mark from the brand stone icons.
+    Use this file as input for: bun run tauri icon src/assets/rune.svg
+  -->
+  <path
+    d="M16 4 H8 V11 H16 V18 H8"
+    fill="none"
+    stroke="#5BA9FF"
+    stroke-width="2.8"
+    stroke-linecap="square"
+    stroke-linejoin="miter"
+  />
+  <!-- Glow layer -->
+  <path
+    d="M16 4 H8 V11 H16 V18 H8"
+    fill="none"
+    stroke="#5BA9FF"
+    stroke-width="5"
+    stroke-linecap="square"
+    stroke-linejoin="miter"
+    opacity="0.2"
+  />
+</svg>

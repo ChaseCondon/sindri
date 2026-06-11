@@ -1,0 +1,54 @@
+{
+  "id": "sindri-dark",
+  "name": "Sindri Dark",
+  "kind": "dark",
+  "ui": {
+    "--bg":           "#0A0D16",
+    "--bg-panel":     "#12172B",
+    "--bg-chrome":    "#0D1120",
+    "--bg-hover":     "rgba(255,255,255,0.05)",
+    "--border":       "#1E2433",
+    "--border-subtle":"#181D2A",
+    "--text":         "#CDD3DE",
+    "--text-dim":     "#6B7585",
+    "--accent":       "#5BA9FF",
+    "--accent-tint":  "rgba(91,169,255,0.14)",
+    "--danger":       "#E06C75"
+  },
+  "glow": {
+    "--glow-color":        "91,169,255",
+    "--glow-accent":       "0 0 8px rgba(91,169,255,.45)",
+    "--glow-accent-strong":"0 0 16px rgba(91,169,255,.6),0 0 32px rgba(91,169,255,.25)"
+  },
+  "editor": {
+    "bg":              "#0F1115",
+    "fg":              "#CDD3DE",
+    "caret":           "#5BA9FF",
+    "selection":       "#1E2D45",
+    "activeLine":      "#141820",
+    "gutter.bg":       "#0F1115",
+    "gutter.fg":       "#3A4558",
+    "gutter.activeFg": "#6B8AAF",
+    "matchingBracket": "#1E3050"
+  },
+  "syntax": {
+    "keyword":        { "color": "#88BFFF" },
+    "controlKeyword": { "color": "#88BFFF" },
+    "string":         { "color": "#65C2A5" },
+    "number":         { "color": "#7DB5FF" },
+    "bool":           { "color": "#7DB5FF" },
+    "comment":        { "color": "#4B5870", "fontStyle": "italic" },
+    "function":       { "color": "#B8D8FF" },
+    "type":           { "color": "#C5DFFF" },
+    "variable":       { "color": "#CDD3DE" },
+    "property":       { "color": "#9BADC5" },
+    "operator":       { "color": "#5BA9FF" },
+    "punctuation":    { "color": "#6B7585" },
+    "tag":            { "color": "#88BFFF" },
+    "attribute":      { "color": "#65C2A5" },
+    "heading":        { "color": "#B8D8FF" },
+    "link":           { "color": "#5BA9FF" },
+    "regexp":         { "color": "#65C2A5" },
+    "escape":         { "color": "#88BFFF" }
+  }
+}

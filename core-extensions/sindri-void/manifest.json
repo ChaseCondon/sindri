@@ -1,0 +1,16 @@
+{
+  "id": "sindri.sindri-void",
+  "name": "Sindri Void",
+  "version": "0.1.0",
+  "publisher": "sindri",
+  "description": "Sindri Void — near-black background, blue accent. Maximum contrast dark theme.",
+  "categories": ["Color Theme"],
+  "license": "AGPL-3.0-only",
+  "permissions": [],
+  "engines": { "sindri": ">=0.1.0" },
+  "contributes": {
+    "themes": [
+      { "id": "sindri-void", "name": "Sindri Void", "kind": "dark", "path": "void.json" }
+    ]
+  }
+}

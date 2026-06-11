@@ -1,0 +1,129 @@
+[
+  {
+    "manifest": {
+      "id": "sindri.sindri-dark",
+      "name": "Sindri Dark",
+      "version": "0.1.0",
+      "publisher": "sindri",
+      "description": "Sindri's default dark colour theme — deep navy with a blue accent.",
+      "categories": ["Color Theme"],
+      "license": "AGPL-3.0-only",
+      "permissions": [],
+      "engines": { "sindri": ">=0.1.0" },
+      "contributes": {
+        "themes": [
+          { "id": "sindri-dark", "name": "Sindri Dark", "kind": "dark", "path": "dark.json" }
+        ]
+      }
+    },
+    "tags": ["v0.1.0"],
+    "readmeContent": "Sindri's default dark colour theme. Deep navy background with a blue accent.",
+    "folderPath": "sindri-dark"
+  },
+  {
+    "manifest": {
+      "id": "sindri.sindri-light",
+      "name": "Sindri Light",
+      "version": "0.1.0",
+      "publisher": "sindri",
+      "description": "Sindri's built-in light colour theme — clean whites with a blue accent.",
+      "categories": ["Color Theme"],
+      "license": "AGPL-3.0-only",
+      "permissions": [],
+      "engines": { "sindri": ">=0.1.0" },
+      "contributes": {
+        "themes": [
+          { "id": "sindri-light", "name": "Sindri Light", "kind": "light", "path": "light.json" }
+        ]
+      }
+    },
+    "tags": ["v0.1.0"],
+    "readmeContent": "Sindri's built-in light colour theme. Clean white background with a blue accent.",
+    "folderPath": "sindri-light"
+  },
+  {
+    "manifest": {
+      "id": "sindri.sindri-void",
+      "name": "Sindri Void",
+      "version": "0.1.0",
+      "publisher": "sindri",
+      "description": "Near-black background, blue accent. Maximum contrast dark theme.",
+      "categories": ["Color Theme"],
+      "license": "AGPL-3.0-only",
+      "permissions": [],
+      "engines": { "sindri": ">=0.1.0" },
+      "contributes": {
+        "themes": [
+          { "id": "sindri-void", "name": "Sindri Void", "kind": "dark", "path": "void.json" }
+        ]
+      }
+    },
+    "tags": ["v0.1.0"],
+    "readmeContent": "Near-black background with a blue accent. Maximum contrast dark theme for focused work.",
+    "folderPath": "sindri-void"
+  },
+  {
+    "manifest": {
+      "id": "sindri.sindri-file-icons",
+      "name": "Sindri File Icons",
+      "version": "0.1.0",
+      "publisher": "sindri",
+      "description": "Sindri's built-in file icon set — 108 file and folder icons using Phosphor shapes and simple-icons brand logos.",
+      "categories": ["File Icon Theme"],
+      "license": "AGPL-3.0-only",
+      "permissions": [],
+      "engines": { "sindri": ">=0.1.0" },
+      "credits": [
+        {
+          "name": "Phosphor Icons",
+          "spdx": "MIT",
+          "url": "https://phosphoricons.com",
+          "notice": "Copyright (c) 2020 Phosphor Icons"
+        },
+        {
+          "name": "Simple Icons",
+          "spdx": "CC0-1.0",
+          "url": "https://simpleicons.org",
+          "notice": "Individual brand icons are the trademarks of their respective owners. See https://simpleicons.org/legal-notice"
+        }
+      ],
+      "contributes": {
+        "iconThemes": [
+          { "id": "sindri-file-icons", "name": "Sindri File Icons", "kind": "color", "path": "icons.json" }
+        ]
+      }
+    },
+    "tags": ["v0.1.0"],
+    "readmeContent": "Sindri's built-in file icon set — 108 icons for common file types, languages, and folder types. Phosphor shapes for folders and system files; canonical simple-icons brand paths for language and tool logos.",
+    "folderPath": "sindri-file-icons"
+  },
+  {
+    "manifest": {
+      "id": "sindri.sindri-ui-icons",
+      "name": "Sindri UI Icons",
+      "version": "0.1.0",
+      "publisher": "sindri",
+      "description": "Sindri's built-in activity bar and toolbar icon set — Phosphor regular-weight glyphs as placeholders until custom runic icons are designed.",
+      "categories": ["UI Icon Theme"],
+      "license": "AGPL-3.0-only",
+      "permissions": [],
+      "engines": { "sindri": ">=0.1.0" },
+      "credits": [
+        {
+          "name": "Phosphor Icons",
+          "spdx": "MIT",
+          "url": "https://phosphoricons.com",
+          "notice": "Copyright (c) 2020 Phosphor Icons"
+        }
+      ],
+      "contributes": {
+        "uiIconPacks": [
+          { "id": "sindri-ui-icons", "name": "Sindri UI Icons", "path": "ui-pack.json" }
+        ]
+      }
+    },
+    "tags": ["v0.1.0"],
+    "readmeContent": "Sindri's built-in activity bar and toolbar icon set. Phosphor regular-weight glyphs — placeholder until custom runic icons are designed.",
+    "folderPath": "sindri-ui-icons"
+  }
+]

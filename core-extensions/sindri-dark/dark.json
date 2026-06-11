@@ -1,0 +1,150 @@
+{
+  "id": "sindri-dark",
+  "name": "Sindri Dark",
+  "kind": "dark",
+  "ui": {
+    "--bg": "#0A0D16",
+    "--bg-panel": "#12172B",
+    "--bg-chrome": "#0D1120",
+    "--bg-hover": "rgba(255,255,255,0.05)",
+    "--border": "#1E2433",
+    "--border-subtle": "#181D2A",
+    "--text": "#CDD3DE",
+    "--text-dim": "#6B7585",
+    "--accent": "#5BA9FF",
+    "--accent-tint": "rgba(91,169,255,0.14)",
+    "--danger": "#E06C75"
+  },
+  "glow": {
+    "--glow-color": "91,169,255",
+    "--glow-accent": "0 0 8px rgba(91,169,255,.45)",
+    "--glow-accent-strong": "0 0 16px rgba(91,169,255,.6),0 0 32px rgba(91,169,255,.25)"
+  },
+  "editor": {
+    "bg": "#0F1115",
+    "fg": "#CDD3DE",
+    "caret": "#5BA9FF",
+    "selection": "#1E2D45",
+    "activeLine": "#141820",
+    "gutter.bg": "#0F1115",
+    "gutter.fg": "#3A4558",
+    "gutter.activeFg": "#6B8AAF",
+    "matchingBracket": "#1E3050"
+  },
+  "syntax": {
+    "keyword": {
+      "color": "#9898E0"
+    },
+    "controlKeyword": {
+      "color": "#9898E0"
+    },
+    "string": {
+      "color": "#65C2A5"
+    },
+    "number": {
+      "color": "#7AB8CC"
+    },
+    "bool": {
+      "color": "#7AB8CC"
+    },
+    "comment": {
+      "color": "#4B5870",
+      "fontStyle": "italic"
+    },
+    "function": {
+      "color": "#88BFFF"
+    },
+    "type": {
+      "color": "#4EC9D4"
+    },
+    "variable": {
+      "color": "#CDD3DE"
+    },
+    "property": {
+      "color": "#8E9EBA"
+    },
+    "operator": {
+      "color": "#5BA9FF"
+    },
+    "punctuation": {
+      "color": "#6B7585"
+    },
+    "tag": {
+      "color": "#88BFFF"
+    },
+    "attribute": {
+      "color": "#65C2A5"
+    },
+    "heading": {
+      "color": "#88BFFF"
+    },
+    "link": {
+      "color": "#5BA9FF"
+    },
+    "regexp": {
+      "color": "#65C2A5"
+    },
+    "escape": {
+      "color": "#4EC9D4"
+    }
+  },
+  "terminal": {
+    "black": "#181D2A",
+    "red": "#E06C75",
+    "green": "#65C2A5",
+    "yellow": "#E0AF68",
+    "blue": "#5BA9FF",
+    "magenta": "#9898E0",
+    "cyan": "#4EC9D4",
+    "white": "#CDD3DE",
+    "brightBlack": "#3A4558",
+    "brightRed": "#FF8090",
+    "brightGreen": "#85D9BC",
+    "brightYellow": "#FFD080",
+    "brightBlue": "#88BFFF",
+    "brightMagenta": "#B8B8F0",
+    "brightCyan": "#6EDADF",
+    "brightWhite": "#E8ECF0"
+  },
+  "diff": {
+    "added": "rgba(101,194,165,0.12)",
+    "modified": "rgba(91,169,255,0.12)",
+    "deleted": "rgba(224,108,117,0.14)"
+  },
+  "find": {
+    "match": "rgba(91,169,255,0.35)",
+    "matchHighlight": "rgba(91,169,255,0.20)",
+    "wordHighlight": "rgba(91,169,255,0.15)"
+  },
+  "diagnostic": {
+    "error": "#E06C75",
+    "warning": "#E0AF68",
+    "info": "#5BA9FF"
+  },
+  "syntaxExtended": {
+    "class": {
+      "color": "#4EC9D4"
+    },
+    "interface": {
+      "color": "#4EC9D4"
+    },
+    "enum": {
+      "color": "#4EC9D4"
+    },
+    "namespace": {
+      "color": "#7AB8CC"
+    },
+    "decorator": {
+      "color": "#65C2A5"
+    },
+    "constant": {
+      "color": "#7AB8CC"
+    },
+    "macro": {
+      "color": "#9898E0"
+    },
+    "typeParameter": {
+      "color": "#4EC9D4"
+    }
+  }
+}

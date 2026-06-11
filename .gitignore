@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+# Core extension bundles committed so the host can load them without a build step
+!core-extensions/*/dist/
+dist-ssr/
+build/
+out/
+*.local
+
+# Rust / Tauri
+src-tauri/target/
+src-tauri/gen/
+target/
+**/*.rs.bk
+*.pdb
+
+# Editor / OS
+.DS_Store
+*.log
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Claude Code — never commit AI tooling metadata
+.claude/
+CLAUDE.md
+HANDOVER.md
+memory/
+.vite/

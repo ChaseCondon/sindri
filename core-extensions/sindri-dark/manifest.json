@@ -1,0 +1,16 @@
+{
+  "id": "sindri.sindri-dark",
+  "name": "Sindri Dark",
+  "version": "0.1.0",
+  "publisher": "sindri",
+  "description": "Sindri's default dark colour theme — deep navy with a blue accent.",
+  "categories": ["Color Theme"],
+  "license": "AGPL-3.0-only",
+  "permissions": [],
+  "engines": { "sindri": ">=0.1.0" },
+  "contributes": {
+    "themes": [
+      { "id": "sindri-dark", "name": "Sindri Dark", "kind": "dark", "path": "dark.json" }
+    ]
+  }
+}
