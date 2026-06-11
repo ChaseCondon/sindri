@@ -2587,6 +2587,19 @@ button:active {
   background: var(--bg-chrome);
   border: 1px solid var(--border-subtle);
   border-radius: 5px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+button.mkt-pack-member:not([disabled]):hover {
+  background: var(--bg-elevated);
+  border-color: var(--border);
+}
+button.mkt-pack-member:disabled {
+  cursor: default;
 }
 .mkt-pack-member-missing { opacity: 0.55; }
 

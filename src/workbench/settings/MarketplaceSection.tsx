@@ -693,8 +693,7 @@ export function MarketplaceSection() {
 
   const searched = createMemo(() => {
     const q = search().trim();
-    // Never show pack/collection members in the top-level list — they're accessible via the parent pack detail.
-    let list = (entries() ?? []).filter((e) => !e.item.isMember);
+    let list = entries() ?? [];
     if (q) list = list.filter((e) => fuzzyMatch(q, e.item));
     if (showInstalled()) list = list.filter((e) => e.repoUrl === null || installedIds().has(e.item.manifest.id));
     return list;
@@ -703,9 +702,13 @@ export function MarketplaceSection() {
   const filtered = createMemo(() => {
     const cat = filterCat();
     if (cat === "All") return searched();
+    // For theme/icon tabs, filter by actual contributes — prevents packs from appearing here
+    // just because their declared categories list these (they contribute indirectly through members).
+    if (cat === "Color Theme")     return searched().filter((e) => (e.item.manifest.contributes?.themes?.length ?? 0) > 0);
+    if (cat === "File Icon Theme") return searched().filter((e) => (e.item.manifest.contributes?.iconThemes?.length ?? 0) > 0);
+    if (cat === "UI Icon Theme")   return searched().filter((e) => (e.item.manifest.contributes?.uiIconPacks?.length ?? 0) > 0);
+    if (cat === "Extension Pack")  return searched().filter((e) => (e.item.manifest.extensionPack?.length ?? 0) > 0);
     if (cat === "Other") {
-      // "Other" shows extensions with the explicit "Other" category OR whose
-      // categories are all outside the known predefined list
       return searched().filter((e) =>
         e.item.manifest.categories.includes("Other") ||
         e.item.manifest.categories.every((c) => !KNOWN_CATS.has(c))
@@ -717,11 +720,16 @@ export function MarketplaceSection() {
   const counts = createMemo(() => {
     const all = searched();
     const map: Record<string, number> = { All: all.length };
+    // Theme/icon counts mirror the contributes-based filtering used in filtered()
+    map["Color Theme"]     = all.filter(e => (e.item.manifest.contributes?.themes?.length ?? 0) > 0).length;
+    map["File Icon Theme"] = all.filter(e => (e.item.manifest.contributes?.iconThemes?.length ?? 0) > 0).length;
+    map["UI Icon Theme"]   = all.filter(e => (e.item.manifest.contributes?.uiIconPacks?.length ?? 0) > 0).length;
+    map["Extension Pack"]  = all.filter(e => (e.item.manifest.extensionPack?.length ?? 0) > 0).length;
     for (const e of all) {
       for (const c of e.item.manifest.categories) {
+        if (c === "Color Theme" || c === "File Icon Theme" || c === "UI Icon Theme" || c === "Extension Pack") continue;
         map[c] = (map[c] ?? 0) + 1;
       }
-      // Also count towards "Other" if all categories are unknown
       if (e.item.manifest.categories.every((c) => !KNOWN_CATS.has(c))) {
         map["Other"] = (map["Other"] ?? 0) + 1;
       }
@@ -740,6 +748,11 @@ export function MarketplaceSection() {
     setInstalling(e.item.manifest.id);
     await doInstall(e);
     setInstalling(null);
+  }
+
+  function navigateTo(me: MarketplaceEntry) {
+    setFilterCat("All");
+    setSelected(me);
   }
 
   return (
@@ -877,6 +890,7 @@ export function MarketplaceSection() {
                       installing={installing() === me.item.manifest.id}
                       onInstall={() => handleInstall(me)}
                       onUninstall={() => doUninstall(me)}
+                      onNavigate={navigateTo}
                     />
                   </ErrorBoundary>
                 )}
@@ -899,12 +913,26 @@ function ExtensionDetail(props: {
   installing: boolean;
   onInstall: () => void;
   onUninstall: () => void;
+  onNavigate: (entry: MarketplaceEntry) => void;
 }) {
   const manifest = props.entry.item.manifest;
   const isBundled = props.entry.repoUrl === null;
   const installed = () => installedIds().has(manifest.id);
   const isPack = isExtensionPack(manifest);
   const needsHost = !isPack && !!manifest.main;
+
+  // README: fetch on demand; undefined = loading, null = not found, string = content
+  const [readmeContent, setReadmeContent] = createSignal<string | null | undefined>(undefined);
+  createEffect(() => {
+    const { repoUrl } = props.entry;
+    if (!repoUrl) { setReadmeContent(null); return; }
+    const url = rawFileUrl(repoUrl, props.entry.item.folderPath, "README.md");
+    if (!url) { setReadmeContent(null); return; }
+    fetch(url, { cache: "no-cache" })
+      .then(res => res.ok ? res.text() : null)
+      .then(text => setReadmeContent(text))
+      .catch(() => setReadmeContent(null));
+  });
 
   // Available version tags — filter pre-release based on the repo's showPrerelease setting
   const availableTags = () => {
@@ -975,6 +1003,25 @@ function ExtensionDetail(props: {
   const packAllInstalled = () => packResolved().every(
     ({ entry }) => entry && (entry.repoUrl === null || installedIds().has(entry.item.manifest.id))
   );
+
+  // Flat list of all pack members including sub-pack members, with depth for visual indentation.
+  const packMembersDeep = createMemo(() => {
+    function resolve(ids: string[], depth: number): Array<{ id: string; entry: MarketplaceEntry | null; depth: number }> {
+      const result: Array<{ id: string; entry: MarketplaceEntry | null; depth: number }> = [];
+      for (const id of ids) {
+        const entry = _allEntries.find((e) => e.item.manifest.id === id) ?? null;
+        result.push({ id, entry, depth });
+        if (entry && (entry.item.manifest.extensionPack?.length ?? 0) > 0 && depth < 2) {
+          result.push(...resolve(entry.item.manifest.extensionPack!, depth + 1));
+        }
+      }
+      return result;
+    }
+    return resolve(manifest.extensionPack ?? [], 0);
+  });
+
+  // Packs/collections that declare this extension as a member
+  const parentEntries = () => _allEntries.filter(e => e.item.manifest.extensionPack?.includes(manifest.id));
 
   const isThemePack = () => isPack && (
     manifest.packKind === "theme" ||
@@ -1088,26 +1135,31 @@ function ExtensionDetail(props: {
       <ThemePreview entry={props.entry} />
       </div>{/* /mkt-detail-fixed-top */}
 
-      <Show when={props.entry.item.readmeContent}>
-        <div
-          class="mkt-detail-readme"
-          innerHTML={safeRenderMarkdown(props.entry.item.readmeContent!)}
-        />
+      <Show when={readmeContent() === undefined}>
+        <div class="mkt-detail-readme mkt-detail-readme-empty" style={{ opacity: "0.45" }}>Loading…</div>
       </Show>
-      <Show when={!props.entry.item.readmeContent}>
+      <Show when={readmeContent() !== undefined && !!readmeContent()}>
+        <div class="mkt-detail-readme" innerHTML={safeRenderMarkdown(readmeContent() as string)} />
+      </Show>
+      <Show when={readmeContent() !== undefined && !readmeContent()}>
         <div class="mkt-detail-readme mkt-detail-readme-empty">No description provided.</div>
       </Show>
 
       <div class="mkt-detail-meta">
-        <Show when={isPack && packResolved().length > 0}>
+        <Show when={isPack && packMembersDeep().length > 0}>
           <div class="mkt-detail-section">
             <div class="mkt-detail-section-label">Includes</div>
             <div class="mkt-pack-members">
-              <For each={packResolved()}>
-                {({ id, entry }) => {
+              <For each={packMembersDeep()}>
+                {({ id, entry, depth }) => {
                   const memberInstalled = () => entry && (entry.repoUrl === null || installedIds().has(id));
                   return (
-                    <div class={`mkt-pack-member${!entry ? " mkt-pack-member-missing" : ""}`}>
+                    <button
+                      class={`mkt-pack-member${!entry ? " mkt-pack-member-missing" : ""}`}
+                      style={depth > 0 ? { "padding-left": `${10 + depth * 18}px`, "border-left": "2px solid var(--border-subtle)" } : {}}
+                      disabled={!entry}
+                      onClick={() => entry && props.onNavigate(entry)}
+                    >
                       <span class="mkt-pack-member-icon">
                         {entry ? (CATEGORY_ICONS[entry.item.manifest.categories[0]] ?? "◈") : "⚠"}
                       </span>
@@ -1121,9 +1173,29 @@ function ExtensionDetail(props: {
                           <span class="mkt-badge mkt-badge-installed" style={{ "font-size": "9px", padding: "1px 5px" }}>Installed</span>
                         </Show>
                       </Show>
-                    </div>
+                    </button>
                   );
                 }}
+              </For>
+            </div>
+          </div>
+        </Show>
+
+        <Show when={parentEntries().length > 0}>
+          <div class="mkt-detail-section">
+            <div class="mkt-detail-section-label">Included in</div>
+            <div class="mkt-pack-members">
+              <For each={parentEntries()}>
+                {(parent) => (
+                  <button
+                    class="mkt-pack-member"
+                    onClick={() => props.onNavigate(parent)}
+                  >
+                    <span class="mkt-pack-member-icon">{CATEGORY_ICONS[parent.item.manifest.categories[0]] ?? "◈"}</span>
+                    <span class="mkt-pack-member-name">{parent.item.manifest.name}</span>
+                    <span class="mkt-pack-member-version">v{parent.item.manifest.version}</span>
+                  </button>
+                )}
               </For>
             </div>
           </div>
