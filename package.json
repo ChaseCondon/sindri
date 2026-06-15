@@ -10,9 +10,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "tauri": "tauri",
-    "build:ext": "bun run scripts/build-extension.ts",
-    "build:extensions": "bun run scripts/build-extension.ts core-extensions/sindri-hello"
+    "tauri": "tauri"
   },
   "dependencies": {
     "@codemirror/commands": "^6.7.1",

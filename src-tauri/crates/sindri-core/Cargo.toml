@@ -1,0 +1,21 @@
+[package]
+name = "sindri-core"
+version = "0.0.0"
+edition = "2021"
+description = "Shared truth for the Sindri app and CLI: manifest types, .sinxt format, path resolution, semver. No Tauri, no V8 (ADR-0033 §2)."
+authors = ["Sindri contributors"]
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Path resolution (ADR-0033 §3) — the same crate Tauri uses internally, so
+# sindri-core's app_data_dir() etc. stay byte-identical to the app's resolver.
+dirs = "5"
+thiserror = "2"
+anyhow = "1"
+# .sinxt packaging — deterministic zip (ADR-0033 §5, §7)
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+[dev-dependencies]
+tempfile = "3"

@@ -17,13 +17,52 @@ export interface RegistryRepo {
   developerMode?: boolean;   // unlock dev features: error details, future: local install, reload
 }
 
+// A secondary installation of the same extension from a different source.
+export interface SinxtAlt {
+  sinxtPath: string;
+  manifest: ExtensionManifest;
+}
+
 // Full record stored per installed extension so we can re-register on reload.
 export interface InstalledRecord {
   id: string;
-  repoUrl: string;       // null means bundled (skip re-registration)
+  repoUrl: string;       // "dev" | "local" | marketplace URL
   folderPath: string;
   manifest: ExtensionManifest;
-  sinxtPath?: string;   // absolute path to installed .sinxt; present for marketplace/local-file installs
+  sinxtPath?: string;    // absolute path to .sinxt; present for marketplace/local installs
+
+  // When repoUrl === "dev": the non-dev record that was active before this dev load.
+  // Restored automatically when the dev extension is removed.
+  savedPreDev?: {
+    repoUrl: string;
+    folderPath: string;
+    manifest: ExtensionManifest;
+    sinxtPath?: string;
+    activeVariant?: "marketplace" | "local";
+    localSinxtAlt?: SinxtAlt;
+  };
+
+  // For marketplace records: an alternative local .sinxt the user can activate instead.
+  localSinxtAlt?: SinxtAlt;
+  // Which variant is running. Only meaningful when localSinxtAlt is set.
+  // Defaults to "marketplace" when absent.
+  activeVariant?: "marketplace" | "local";
+}
+
+/** Return the sinxtPath that should currently be active for a record. */
+export function activeSinxtPath(record: InstalledRecord): string | undefined {
+  if (record.activeVariant === "local" && record.localSinxtAlt) {
+    return record.localSinxtAlt.sinxtPath;
+  }
+  return record.sinxtPath;
+}
+
+/** Return the manifest that should currently be active for a record. */
+export function activeManifest(record: InstalledRecord): ExtensionManifest {
+  if (record.activeVariant === "local" && record.localSinxtAlt) {
+    return record.localSinxtAlt.manifest;
+  }
+  return record.manifest;
 }
 
 const STORAGE_KEY = "sindri:settings";
@@ -158,8 +197,97 @@ export function installExtension(
   save();
 }
 
-export function uninstallExtension(id: string): void {
+/**
+ * Remove an extension. If it was a dev record with a savedPreDev, the pre-dev
+ * record is automatically restored. Returns the restored record (if any) so the
+ * caller can re-activate the appropriate sinxt.
+ */
+export function uninstallExtension(id: string): InstalledRecord | null {
+  const record = _installedExtensions().find((r) => r.id === id);
   _setInstalledExtensions(_installedExtensions().filter((r) => r.id !== id));
+
+  let restored: InstalledRecord | null = null;
+  if (record?.repoUrl === "dev" && record.savedPreDev) {
+    const pre = record.savedPreDev;
+    restored = {
+      id,
+      repoUrl: pre.repoUrl,
+      folderPath: pre.folderPath,
+      manifest: pre.manifest,
+      sinxtPath: pre.sinxtPath,
+      activeVariant: pre.activeVariant,
+      localSinxtAlt: pre.localSinxtAlt,
+    };
+    _setInstalledExtensions([..._installedExtensions(), restored]);
+  }
+  save();
+  return restored;
+}
+
+export function updateInstalledExtension(
+  id: string,
+  manifest: ExtensionManifest,
+  sinxtPath?: string,
+): void {
+  _setInstalledExtensions(
+    _installedExtensions().map((r) => r.id === id ? { ...r, manifest, sinxtPath } : r),
+  );
+  save();
+}
+
+/**
+ * Add or update a local .sinxt alternative for an existing marketplace record.
+ * Switches activeVariant to "local" immediately so the new file is used.
+ * If the record is a dev record, updates its savedPreDev instead.
+ */
+export function setLocalSinxtAlt(id: string, sinxtPath: string, manifest: ExtensionManifest): void {
+  _setInstalledExtensions(
+    _installedExtensions().map((r) => {
+      if (r.id !== id) return r;
+      if (r.repoUrl === "dev" && r.savedPreDev) {
+        // Patch the saved pre-dev so the local alt survives a dev-remove restore.
+        return { ...r, savedPreDev: { ...r.savedPreDev, localSinxtAlt: { sinxtPath, manifest }, activeVariant: "local" } };
+      }
+      return { ...r, localSinxtAlt: { sinxtPath, manifest }, activeVariant: "local" };
+    }),
+  );
+  save();
+}
+
+/** Switch which variant (marketplace sinxt vs local sinxt alt) is active. */
+export function switchExtensionVariant(id: string, variant: "marketplace" | "local"): void {
+  _setInstalledExtensions(
+    _installedExtensions().map((r) => r.id === id ? { ...r, activeVariant: variant } : r),
+  );
+  save();
+}
+
+/**
+ * Register or replace a dev/source extension (repoUrl = "dev", folderPath = source dir).
+ * Saves the previous non-dev record so it can be restored when the dev extension is removed.
+ */
+export function loadDevExtension(
+  id: string,
+  folderPath: string,
+  manifest: ExtensionManifest,
+): void {
+  const existing = _installedExtensions().find((r) => r.id === id);
+  const savedPreDev: InstalledRecord["savedPreDev"] =
+    existing && existing.repoUrl !== "dev"
+      ? {
+          repoUrl: existing.repoUrl,
+          folderPath: existing.folderPath,
+          manifest: existing.manifest,
+          sinxtPath: existing.sinxtPath,
+          activeVariant: existing.activeVariant,
+          localSinxtAlt: existing.localSinxtAlt,
+        }
+      : existing?.savedPreDev; // preserve if replacing one dev with another
+
+  _setInstalledExtensions([
+    ..._installedExtensions().filter((r) => r.id !== id),
+    { id, repoUrl: "dev", folderPath, manifest, savedPreDev },
+  ]);
   save();
 }
 

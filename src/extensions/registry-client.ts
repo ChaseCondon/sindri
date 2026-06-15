@@ -121,100 +121,115 @@ class TauriRegistryClient implements RegistryClient {
 // Lean index enrichment
 // ---------------------------------------------------------------------------
 
-async function fetchManifestEntry(folderPath: string, repoUrl: string): Promise<RegistryIndexEntry | null> {
+async function fetchManifestEntry(folderPath: string, repoUrl: string, isMember?: boolean): Promise<RegistryIndexEntry | null> {
   const url = rawFileUrl(repoUrl, folderPath, "manifest.json");
   if (!url) return null;
   try {
     const res = await fetch(url, { cache: "no-cache" });
     if (!res.ok) return null;
     const manifest = (await res.json()) as ExtensionManifest;
-    return { manifest, tags: [`v${manifest.version}`], folderPath };
+    const entry: RegistryIndexEntry = { manifest, tags: [`v${manifest.version}`], folderPath };
+    if (isMember) entry.isMember = true;
+    return entry;
   } catch {
     return null;
   }
 }
 
-// Discover and fetch member extensions of packs/collections.
-// Derives candidate paths from extensionPack IDs using a two-step convention:
-//   1. {pack-folder}/{id-name-part}            e.g. aurora-theme-pack/aurora-theme
-//   2. {pack-folder}/sindri-{id-name-part}     fallback for extensions with sindri- prefix
-// Both are attempted in parallel; 404s are silently ignored. Results are deduped.
-// Recurses up to MAX_DEPTH to handle collections containing sub-packs.
-const MAX_MEMBER_DEPTH = 3;
+// ADR-0038 §3: id-based resolution from flat entries array.
+// Each entry carries its own path — no guessing, no 404 probes.
+async function enrichFromEntries(
+  entries: Array<{ id: string; path: string; type: string }>,
+  repoUrl: string,
+): Promise<RegistryIndex> {
+  const results = await Promise.all(entries.map(e => fetchManifestEntry(e.path, repoUrl)));
+  const valid = results.filter((e): e is RegistryIndexEntry => e !== null);
 
-async function discoverMembers(
+  // Collect every ID that is explicitly listed in any pack's extensionPack.
+  const packMemberIds = new Set<string>();
+  for (const e of valid) {
+    for (const id of e.manifest.extensionPack ?? []) packMemberIds.add(id);
+  }
+
+  // isMember hides entries from the top-level browse list while keeping them in _allEntries.
+  // Templates are always hidden; pack-member extensions/sub-packs are also hidden.
+  for (const entry of valid) {
+    if (entry.manifest.type === "template" || packMemberIds.has(entry.manifest.id)) {
+      entry.isMember = true;
+    }
+  }
+  return valid;
+}
+
+// Legacy member discovery for old bucket-format registries (no `entries` field).
+// Path-guesses each member by publisher-prefix then plain name; recurses into sub-packs.
+// Only used when the index doesn't carry ADR-0038 `entries`.
+const MAX_MEMBER_DEPTH = 3;
+async function discoverMembersLegacy(
   packEntries: RegistryIndexEntry[],
   repoUrl: string,
   depth: number,
 ): Promise<RegistryIndexEntry[]> {
   if (depth > MAX_MEMBER_DEPTH || packEntries.length === 0) return [];
 
-  // Build candidate paths for all member IDs
-  const candidatePaths: string[] = [];
-  for (const pack of packEntries) {
-    const memberIds = pack.manifest.extensionPack ?? [];
-    for (const memberId of memberIds) {
-      const namePart = memberId.split(".")[1] ?? memberId;
-      candidatePaths.push(`${pack.folderPath}/${namePart}`);
-      candidatePaths.push(`${pack.folderPath}/sindri-${namePart}`);
-    }
-  }
+  const fetches = packEntries.flatMap(pack =>
+    (pack.manifest.extensionPack ?? []).map(memberId => {
+      const dotIdx = memberId.indexOf(".");
+      const publisher = dotIdx >= 0 ? memberId.slice(0, dotIdx) : "";
+      const namePart  = dotIdx >= 0 ? memberId.slice(dotIdx + 1) : memberId;
+      const p1 = `${pack.folderPath}/${publisher ? `${publisher}-` : ""}${namePart}`;
+      const p2 = `${pack.folderPath}/${namePart}`;
+      return p1 === p2
+        ? fetchManifestEntry(p1, repoUrl, true)
+        : fetchManifestEntry(p1, repoUrl, true).then(e => e ?? fetchManifestEntry(p2, repoUrl, true));
+    })
+  );
 
-  if (candidatePaths.length === 0) return [];
-
-  const fetched = await Promise.all(candidatePaths.map(p => fetchManifestEntry(p, repoUrl)));
+  const fetched = await Promise.all(fetches);
   const valid = fetched.filter((e): e is RegistryIndexEntry => e !== null);
 
-  // Deduplicate by folderPath (both candidate variants may resolve to the same entry)
   const seen = new Set<string>();
-  const deduped = valid.filter(e => {
-    if (seen.has(e.folderPath)) return false;
-    seen.add(e.folderPath);
-    return true;
-  });
+  const deduped = valid.filter(e => { if (seen.has(e.folderPath)) return false; seen.add(e.folderPath); return true; });
 
-  // Recurse into any sub-packs found
   const subPacks = deduped.filter(e => (e.manifest.extensionPack?.length ?? 0) > 0);
-  const subMembers = await discoverMembers(subPacks, repoUrl, depth + 1);
-
+  const subMembers = await discoverMembersLegacy(subPacks, repoUrl, depth + 1);
   return [...deduped, ...subMembers];
 }
 
 // Fetch each manifest.json in parallel and assemble the full RegistryIndex.
-// Packs and collections are then walked recursively to fetch their members.
 async function enrichLeanIndex(lean: RegistryLeanIndex, repoUrl: string): Promise<RegistryIndex> {
-  // Legacy flat format
+  // ADR-0038 current format — flat entries with explicit id+path+type
+  if (lean.entries) {
+    return enrichFromEntries(lean.entries, repoUrl);
+  }
+
+  // Legacy bucket format (backward compat — extensions/packs/collections)
+  if (lean.extensions || lean.packs || lean.collections) {
+    const standalonePaths = lean.extensions ?? [];
+    const packPaths       = lean.packs ?? [];
+    const collPaths       = lean.collections ?? [];
+    const allTopPaths     = [...standalonePaths, ...packPaths, ...collPaths];
+    const topEntries = (await Promise.all(allTopPaths.map(fp => fetchManifestEntry(fp, repoUrl))))
+      .filter((e): e is RegistryIndexEntry => e !== null);
+
+    // Discover pack/collection members via path-guessing (same as pre-ADR-0038 behavior)
+    const packCollPaths = new Set([...packPaths, ...collPaths]);
+    const packRoots = topEntries.filter(e => packCollPaths.has(e.folderPath));
+    const memberEntries = await discoverMembersLegacy(packRoots, repoUrl, 1);
+
+    const seen = new Set<string>(topEntries.map(e => e.folderPath));
+    const freshMembers = memberEntries.filter(e => { if (seen.has(e.folderPath)) return false; seen.add(e.folderPath); return true; });
+
+    return [...topEntries, ...freshMembers];
+  }
+
+  // Oldest legacy flat format (backward compat)
   if (lean.extensionFolders) {
     const results = await Promise.all(lean.extensionFolders.map(fp => fetchManifestEntry(fp, repoUrl)));
     return results.filter((e): e is RegistryIndexEntry => e !== null);
   }
 
-  const standalonePaths = lean.extensions ?? [];
-  const packPaths       = lean.packs ?? [];
-  const collPaths       = lean.collections ?? [];
-  const allTopPaths     = [...standalonePaths, ...packPaths, ...collPaths];
-
-  const topEntries = (await Promise.all(allTopPaths.map(fp => fetchManifestEntry(fp, repoUrl))))
-    .filter((e): e is RegistryIndexEntry => e !== null);
-
-  // Auto-discover members of packs and collections
-  const packCollectionPaths = new Set([...packPaths, ...collPaths]);
-  const packEntries = topEntries.filter(e => packCollectionPaths.has(e.folderPath));
-  const memberEntries = await discoverMembers(packEntries, repoUrl, 1);
-
-  // Deduplicate across top-level + member entries (in case a standalone is also a pack member)
-  const seen = new Set<string>(topEntries.map(e => e.folderPath));
-  const freshMembers = memberEntries.filter(e => {
-    if (seen.has(e.folderPath)) return false;
-    seen.add(e.folderPath);
-    return true;
-  });
-
-  // Tag discovered members so the marketplace can exclude them from the top-level list
-  // while keeping them in _allEntries for pack detail resolution.
-  for (const e of freshMembers) e.isMember = true;
-
-  return [...topEntries, ...freshMembers];
+  return [];
 }
 
 // ---------------------------------------------------------------------------

@@ -126,6 +126,45 @@ The static Model-A path needs **no** public method — it is pure manifest contr
 - **Snapshot/`provide` performance contract** — debounce, viewport-only vs. full-doc, incremental diffing across IPC (only matters once Model B ships).
 - **Provider-supplied themable token registration** — for now Model B classes must resolve against existing ADR-0019 theme tokens.
 
+## Addendum — 2026-06-12: Model B ships (1.5g), with the snapshot at the webview and a `cssVars` datum extension
+
+> Decorations are one capability of the **`sindri.editor` namespace**, whose full surface (document proxy · selections · visible ranges · events; writes deferred) and the editor-touching-API family map are defined in [ADR-0034](0034-sindri-editor-namespace.md). This addendum covers decoration *mechanics*; ADR-0034 covers the *surface* they live in.
+
+Implementing Model B (`sindri-color-swatches`, roadmap 1.5g) forced three shape decisions the original deferred. None reverse the ADR; they close its open ends.
+
+### A. The snapshot originates in the webview, not the core
+
+§3's mermaid put "viewport + tree snapshot" in the Rust core feeding the provider. In the real topology the document, viewport, and syntax tree live **only in the SolidJS webview** (CM6); the provider's `provide()` runs in the **deno_core JS host** (ADR-0025); Rust is a **pass-through broker**, exactly as for tree views. So the flow is a round trip *originating in the webview*: a generic core `ViewPlugin` assembles the ctx, ships it to the host via a request command, and paints the marshalled reply.
+
+- **Wire (mirrors `ext_tree_view_get_children`):** `ext_editor_provide_decorations(providerId, ctxJson) → DecorationDatum[] JSON`.
+- **Registration (mirrors `__sindri.ui.treeViewRegistered`):** JS emits `__sindri.editor.decorationProviderRegistered {id, configKeys}` / `…Disposed {id}` on the event bus; the webview drives requests off that.
+- `registerDecorationProvider` is gated by `editor.mutate` (ADR-0015 §6). `provide` may return `DecorationDatum[] | Promise<…>`.
+
+### B. `DecorationContext` is viewport-scoped, text-only (v1)
+
+```ts
+interface DecorationContext { text: string; from: number; to: number; firstLine: number; languageId: string; version: number; }
+```
+
+`text` is the viewport slice **+ overscan**; `from` is its absolute document offset (add it to local match indices); `firstLine` (1-based, CM6 convention) is the line number of `text[0]` so per-line providers (e.g. git blame) need not count newlines. **No syntax-tree slice in v1** — providers regex/parse `text` themselves (sufficient for color-swatches; the tree remains deferred per the original "Deferred" list). `version` is a monotonic doc revision the host uses to **drop stale replies**. Re-requests are debounced and fire on viewport change, doc change, and — reusing §4's spine — when a provider's `configKeys` intersect a `configStore.onDidChange`.
+
+### C. `DecorationDatum` is a `kind`-tagged union; `cssVars` carries data-driven values
+
+**Framing:** this is the *general* API for injecting additional context into an editor window — `sindri-color-swatches` is only the proof-of-concept that exercises the seam. The real consumers are things like **inline git blame**, code-lens-style annotations, and inline diagnostics. The union is therefore designed as an **explicit `kind`-tagged discriminated union** so new variants are additive and the painting code is a clean switch — not the presence-discriminated (`from` vs `line`) shape, which breaks down once a third variant also carries `line`.
+
+```ts
+type DecorationDatum =
+  | { kind: "mark"; from: number; to: number; class: string; cssVars?: Record<`--${string}`, string> }
+  | { kind: "line"; line: number; class: string; cssVars?: Record<`--${string}`, string> };
+  // future range-decoration kinds (atomic/replace) grow the union + a `case` in the ViewPlugin.
+```
+
+v1 implements **`mark` + `line` only.** The `kind` discriminant future-proofs *this* union for additional **range** decoration kinds.
+
+> ⚠️ **Boundary with ADR-0029.** Anything that injects content the document doesn't contain — **inline end-of-line text (git blame), gutter widgets, the minimap, viewport-spanning chrome** — is **surface C** and belongs to [ADR-0029](0029-editor-overlay-api.md) (Reserved; will live in `sindri.ui`), *not* a `DecorationDatum` growth. `DecorationDatum` only ever paints CSS classes (+`cssVars` values) onto document **ranges/lines**. Use that line to decide where a future feature lands: "class on a range" → ADR-0024; "a thing that isn't in the text" → ADR-0029.
+
+The class-only original could not express "paint *this* color from the document." Rather than free-form inline `style` (CSS-injection / theming-bypass risk) or widgets (deferred), a datum may carry **CSS custom properties only**: the themeable **class** owns all structure and painting (`.cm-color-swatch { box-shadow: inset 0 -3px 0 0 var(--swatch-color) }`); `cssVars` only supplies *values* (`{ "--swatch-color": "#ff0000" }`), applied as inline custom properties on the decoration's `attributes`. Keys must start with `--` (enforced host-side). v1 stays **mark/line-only** — atomic/replace ranges and gutter markers beyond a line class remain deferred.
+
 ## See also
 
 - [ADR-0023](0023-extension-configuration-contract.md) — the config values + `onDidChange` this consumes

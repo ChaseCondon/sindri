@@ -179,6 +179,26 @@ export function applyTheme(): void {
   for (const [token, value] of Object.entries(uiDef.ui))   root.style.setProperty(token, value);
   for (const [token, value] of Object.entries(uiDef.glow)) root.style.setProperty(token, value);
 
+  // 1b. Icon theme CSS variable overrides (ADR-0032 template variables).
+  // A dedicated <style> element is used so switching away from a child theme
+  // cleanly removes the previous overrides rather than leaving stale inline vars.
+  const ICON_VARS_ID = "sindri-icon-theme-vars";
+  const iconDef = _iconThemes.get(iconThemeId());
+  const iconVarsEl = document.getElementById(ICON_VARS_ID);
+  if (iconDef?.cssVars && Object.keys(iconDef.cssVars).length > 0) {
+    const css = `:root{${Object.entries(iconDef.cssVars).map(([k, v]) => `${k}:${v}`).join(";")}}`;
+    if (iconVarsEl) {
+      iconVarsEl.textContent = css;
+    } else {
+      const style = document.createElement("style");
+      style.id = ICON_VARS_ID;
+      style.textContent = css;
+      document.head.appendChild(style);
+    }
+  } else {
+    iconVarsEl?.remove();
+  }
+
   // 2. Build CM6 extension from the plain Map value — guaranteed no proxy
   setCurrentThemeDef(editorDef);
   const ext = buildCM6Extension(editorDef);

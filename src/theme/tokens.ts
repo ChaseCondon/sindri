@@ -145,6 +145,9 @@ export interface IconThemeDef {
   folderNames?: Record<string, IconId>;
   defaults: { file: IconId; folder: IconId; folderOpen: IconId };
   icons: Record<IconId, IconSource>;
+  // CSS custom property overrides injected onto :root when this theme is active (ADR-0032).
+  // Keys must include the leading '--' (e.g. '--folder-base': '#585b70').
+  cssVars?: Record<string, string>;
   // RESERVED per ADR-0019 §4 — activity bar / dock / toolbar glyphs (not yet implemented)
   ui?: Record<string, IconSource>;
 }

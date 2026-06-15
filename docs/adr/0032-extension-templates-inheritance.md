@@ -1,8 +1,10 @@
 # ADR-0032: Extension templates & inheritance — `extends` + `variables`, CSS-custom-property SVG templates
 
-- **Status:** Accepted — 2026-06-11
+- **Status:** Accepted — 2026-06-11 · §6 superseded by [ADR-0038](0038-manifest-type-and-id-resolution.md); §5 reaffirmed there
 - **Follows from:** [ADR-0019](0019-theme-and-icon-system.md) (theme/icon-as-data) · [ADR-0020](0020-extension-distribution-and-marketplace.md) (manifest, packs, registries) · [ADR-0031](0031-resource-url-scheme.md) (bundle-dir registration)
 - **Phase:** 1.5n — Extension author DX (community-theme-icons as reference implementation)
+
+> **Addendum (2026-06-15, [ADR-0038](0038-manifest-type-and-id-resolution.md)):** §6's typed `{id,path}` buckets are replaced by a flat `entries: [{ id, path, type }]` list, and "the base is a standalone installable entry" is reversed — a base is now `type: "template"` (resolvable by id, **not** installable, hidden from browse). §5's by-id resolution is reaffirmed and finally implemented (the shipped `discoverMembers` path-guessing is removed).
 
 ---
 

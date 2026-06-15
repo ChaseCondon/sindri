@@ -14,12 +14,14 @@ import { checkThemeCoverage, COVERAGE_TOTAL } from "../../theme/coverage";
 import {
   registryRepos, addRepo, removeRepo, toggleRepoPrerelease, toggleRepoDeveloperMode,
   activeLocale, setLocale,
-  installedIds, installedExtensions,
+  installedIds, installedExtensions, installExtension, uninstallExtension, updateInstalledExtension,
+  loadDevExtension, setLocalSinxtAlt, switchExtensionVariant, activeSinxtPath, activeManifest,
   liveThemePreview, setLiveThemePreview,
   previewThemeDef,
-  activeBundlePath, setActiveBundlePath,
 } from "./store";
-import { activateExtensionWithManifest } from "../../extensions/activation";
+import { activateExtensionFromSinxt, activateExtensionWithManifest } from "../../extensions/activation";
+import { deregisterExtDecorations } from "../../editor/editor-state-bridge";
+import type { ExtensionManifest } from "../../extensions/manifest";
 import { isTauri } from "../../lib/tauri";
 import { get as cfgGet, set as cfgSet, EDITOR_DECORATIONS_SCHEMA } from "./configStore";
 import type { ConfigurationSchema, ConfigurationField } from "../../extensions/manifest";
@@ -66,7 +68,7 @@ const NAV_GROUPS: NavGroup[] = [
     id: "extensions",
     label: "Extensions",
     sections: [
-      { id: "extensions-active", label: "Active Extension" },
+      { id: "extensions-active", label: "Install Extension" },
       { id: "extensions-repos",  label: "Repositories" },
       { id: "extensions-prefs",  label: "Marketplace Preferences" },
       { id: "marketplace",       label: "Marketplace" },
@@ -581,77 +583,368 @@ function LanguagePacksSection(props: { onBrowse: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
-// Active Extension
+// Installed Extensions — Dev and Marketplace/Local sections
 // ---------------------------------------------------------------------------
 
+type InstallStatus =
+  | { kind: "ok"; name: string; version: string }
+  | { kind: "err"; msg: string };
+
 function ActiveExtensionSection() {
-  const [activating, setActivating] = createSignal(false);
-  const [error, setError] = createSignal<string | null>(null);
+  const [activeTab, setActiveTab] = createSignal<"installed" | "dev">("installed");
+  const [loadingSource, setLoadingSource] = createSignal(false);
+  const [installing, setInstalling] = createSignal(false);
+  const [status, setStatus] = createSignal<InstallStatus | null>(null);
+  const [debuggerUrls, setDebuggerUrls] = createSignal<Map<string, string>>(new Map());
 
-  const bundleName = () => {
-    const p = activeBundlePath();
-    if (!p) return null;
-    return p.split(/[/\\]/).pop() ?? p;
-  };
+  const devExtensions = () => installedExtensions().filter((r) => r.repoUrl === "dev");
+  const localExts = () => installedExtensions().filter((r) => r.repoUrl === "local");
+  const marketplaceExts = () => installedExtensions().filter((r) => r.repoUrl !== "dev" && r.repoUrl !== "local");
 
-  async function handleLoadFromFile() {
-    setError(null);
+  async function handleLoadFromSource() {
+    setStatus(null);
     const { open } = await import("@tauri-apps/plugin-dialog");
     const selected = await open({
       multiple: false,
       directory: false,
-      filters: [{ name: "Extension Bundle", extensions: ["js"] }],
+      filters: [{ name: "Extension Manifest", extensions: ["json"] }],
+      title: "Select manifest.json",
     });
     if (!selected || typeof selected !== "string") return;
-    setActivating(true);
+    const dir = selected.replace(/[/\\][^/\\]*$/, "") || selected;
+    setLoadingSource(true);
     try {
-      await activateExtensionWithManifest(selected);
-      setActiveBundlePath(selected);
+      const { invoke } = await import("@tauri-apps/api/core");
+      const result = await invoke<{ manifest_json: string; dev_dir: string }>(
+        "ext_load_from_source",
+        { dir },
+      );
+      const manifest = JSON.parse(result.manifest_json) as ExtensionManifest;
+      if (!manifest.id) throw new Error("manifest.json missing 'id'");
+      loadDevExtension(manifest.id, selected, manifest);
+      await activateExtensionWithManifest(`${result.dev_dir}/extension.js`);
+      setStatus({ kind: "ok", name: manifest.name ?? manifest.id, version: manifest.version ?? "" });
     } catch (e) {
-      setError(String(e));
+      setStatus({ kind: "err", msg: String(e) });
     } finally {
-      setActivating(false);
+      setLoadingSource(false);
     }
+  }
+
+  async function handleInstallFromFile() {
+    setStatus(null);
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const selected = await open({
+      multiple: false,
+      directory: false,
+      filters: [{ name: "Sindri Extension", extensions: ["sinxt"] }],
+    });
+    if (!selected || typeof selected !== "string") return;
+    setInstalling(true);
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const result = await invoke<{ sinxt_path: string; manifest_json: string }>(
+        "install_sinxt_from_path",
+        { path: selected },
+      );
+      const manifest = JSON.parse(result.manifest_json) as ExtensionManifest;
+      if (!manifest.id) throw new Error("manifest.json missing 'id'");
+      const existing = installedExtensions().find((r) => r.id === manifest.id);
+      if (existing && existing.repoUrl !== "local" && existing.repoUrl !== "dev") {
+        setLocalSinxtAlt(manifest.id, result.sinxt_path, manifest);
+      } else if (existing) {
+        updateInstalledExtension(manifest.id, manifest, result.sinxt_path);
+      } else {
+        installExtension(manifest.id, "local", "", manifest, result.sinxt_path);
+      }
+      await activateExtensionFromSinxt(result.sinxt_path, manifest);
+      setStatus({ kind: "ok", name: manifest.name ?? manifest.id, version: manifest.version ?? "" });
+    } catch (e) {
+      setStatus({ kind: "err", msg: String(e) });
+    } finally {
+      setInstalling(false);
+    }
+  }
+
+  async function handleRemoveDev(id: string) {
+    deregisterExtDecorations(id);
+    const restored = uninstallExtension(id);
+    setDebuggerUrls((prev) => { const m = new Map(prev); m.delete(id); return m; });
+    if (isTauri()) {
+      const { invoke } = await import("@tauri-apps/api/core");
+      invoke("ext_stop_dev_watch", { extId: id }).catch(() => {});
+      if (restored) {
+        const sinxt = activeSinxtPath(restored);
+        const mf = activeManifest(restored);
+        if (sinxt) activateExtensionFromSinxt(sinxt, mf).catch(() => {});
+      }
+    }
+  }
+
+  async function handleAttachDebugger(id: string) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    try {
+      const wsUrl = await invoke<string>("ext_attach_debugger", { extId: id });
+      setDebuggerUrls((prev) => new Map([...prev, [id, wsUrl]]));
+    } catch (e) {
+      alert(`Attach debugger failed: ${e}`);
+    }
+  }
+
+  async function handleStopDebugger(id: string) {
+    setDebuggerUrls((prev) => { const m = new Map(prev); m.delete(id); return m; });
+    if (isTauri()) {
+      const { invoke } = await import("@tauri-apps/api/core");
+      invoke("ext_stop_debugger", { extId: id }).catch(() => {});
+    }
+  }
+
+  function handleCopyDebugUrl(url: string) {
+    navigator.clipboard.writeText(url).catch(() => {});
   }
 
   return (
     <div class="settings-section">
-      <h2 class="settings-section-title">Active Extension</h2>
-      <p class="settings-section-desc">
-        Load a pre-built extension bundle from disk to activate it for this session.
-        Remote install from the Marketplace is coming once the download pipeline is wired up.
-      </p>
+      <h2 class="settings-section-title">Extensions</h2>
 
-      <SettingsGroup title="Current">
-        <Show
-          when={activeBundlePath()}
-          fallback={<div class="ext-active-empty">No extension active</div>}
+      {/* Tab bar */}
+      <div class="ext-tabs">
+        <button
+          class={`ext-tab${activeTab() === "installed" ? " active" : ""}`}
+          onClick={() => setActiveTab("installed")}
         >
-          <div class="ext-active-row">
-            <code class="ext-active-name">{bundleName()}</code>
-            <span class="ext-active-badge">Active</span>
+          Installed Extensions
+        </button>
+        <button
+          class={`ext-tab${activeTab() === "dev" ? " active" : ""}`}
+          onClick={() => setActiveTab("dev")}
+        >
+          Dev Extensions
+        </button>
+      </div>
+
+      {/* ── Installed Extensions tab ────────────────────────────────────────── */}
+      <Show when={activeTab() === "installed"}>
+        <p class="settings-section-desc">
+          Extensions installed from the marketplace or a local <code>.sinxt</code> package.
+        </p>
+
+        {/* Locally installed */}
+        <h3 class="settings-subsection-title">From file</h3>
+        <Show when={localExts().length > 0} fallback={
+          <div class="ext-active-empty">No locally installed extensions.</div>
+        }>
+          <For each={localExts()}>
+            {(record) => (
+              <div class="ext-active-row">
+                <span class="ext-active-name">{record.manifest.name ?? record.id}</span>
+                <span class="ext-active-badge">v{record.manifest.version ?? "?"}</span>
+                <button
+                  class="settings-btn-secondary ext-active-uninstall"
+                  onClick={() => { deregisterExtDecorations(record.id); uninstallExtension(record.id); }}
+                >
+                  Uninstall
+                </button>
+              </div>
+            )}
+          </For>
+        </Show>
+
+        <Show when={isTauri()}>
+          <div class="ext-active-actions">
+            <button
+              class="settings-btn-secondary"
+              disabled={installing()}
+              title="Install a pre-built .sinxt extension package from your local disk."
+              onClick={handleInstallFromFile}
+            >
+              {installing() ? "Installing…" : "Install from .sinxt…"}
+            </button>
           </div>
         </Show>
-      </SettingsGroup>
 
-      <Show when={isTauri()}>
-        <div class="ext-active-actions">
-          <button
-            class="settings-btn-primary"
-            disabled={activating()}
-            onClick={handleLoadFromFile}
-          >
-            {activating() ? "Activating…" : activeBundlePath() ? "Load different extension" : "Load from file…"}
-          </button>
-        </div>
-        <Show when={error()}>
-          <div class="settings-field-error">{error()}</div>
+        {/* Marketplace installed */}
+        <Show when={marketplaceExts().length > 0}>
+          <h3 class="settings-subsection-title" style="margin-top: 1.25rem">From marketplace</h3>
+          <For each={marketplaceExts()}>
+            {(record) => {
+              const activeVariant = () => record.activeVariant ?? "marketplace";
+              async function handleSwitch(variant: "marketplace" | "local") {
+                switchExtensionVariant(record.id, variant);
+                const sinxt = variant === "local" && record.localSinxtAlt
+                  ? record.localSinxtAlt.sinxtPath
+                  : record.sinxtPath;
+                const mf = variant === "local" && record.localSinxtAlt
+                  ? record.localSinxtAlt.manifest
+                  : record.manifest;
+                if (sinxt) await activateExtensionFromSinxt(sinxt, mf).catch(() => {});
+              }
+              return (
+                <div class="ext-active-row">
+                  <span class="ext-active-name">{record.manifest.name ?? record.id}</span>
+                  <Show when={record.localSinxtAlt}
+                    fallback={
+                      <span class="ext-active-badge">v{record.manifest.version ?? "?"}</span>
+                    }
+                  >
+                    <select
+                      class="ext-variant-select"
+                      value={activeVariant()}
+                      onChange={(e) => handleSwitch(e.currentTarget.value as "marketplace" | "local")}
+                    >
+                      <option value="marketplace">marketplace v{record.manifest.version ?? "?"}</option>
+                      <option value="local">local .sinxt v{record.localSinxtAlt!.manifest.version ?? "?"}</option>
+                    </select>
+                  </Show>
+                  <button
+                    class="settings-btn-secondary ext-active-uninstall"
+                    onClick={() => { deregisterExtDecorations(record.id); uninstallExtension(record.id); }}
+                  >
+                    Uninstall
+                  </button>
+                </div>
+              );
+            }}
+          </For>
+        </Show>
+
+        <Show when={localExts().length === 0 && marketplaceExts().length === 0}>
+          <div class="ext-active-empty" style="margin-top: 0.75rem">No extensions installed yet. Browse the Marketplace to get started.</div>
+        </Show>
+
+        <Show when={!isTauri()}>
+          <div class="langpacks-host-note">
+            Extension installation requires the Tauri desktop app.
+          </div>
         </Show>
       </Show>
 
-      <Show when={!isTauri()}>
-        <div class="langpacks-host-note">
-          Extension loading requires the Tauri desktop app.
+      {/* ── Dev Extensions tab ─────────────────────────────────────────────── */}
+      <Show when={activeTab() === "dev"}>
+        <p class="settings-section-desc">
+          Extensions loaded from source. Sindri builds and hot-reloads them on every
+          file save — no packaging or manual reinstall needed.
+        </p>
+
+        <Show when={isTauri()}>
+          <div class="ext-debug-help">
+            <div class="ext-debug-help-title">Debugger setup</div>
+
+            <div class="ext-debug-help-option">
+              <strong>Option A — Chrome DevTools</strong>
+              <ol class="ext-debug-steps">
+                <li>Open <code>chrome://inspect</code> in Chrome or Edge</li>
+                <li>Click <strong>Configure…</strong> and add <code>127.0.0.1:9229</code></li>
+                <li>Click <strong>Attach Debugger</strong> on an extension below — it appears under <em>Remote Targets</em></li>
+              </ol>
+              <p class="ext-debug-help-note">Or use the <strong>Dev Tools</strong> button in the menu bar (⌘⌥I / Ctrl+Shift+I) to open the app's own inspector.</p>
+            </div>
+
+            <div class="ext-debug-help-option">
+              <strong>Option B — VS Code</strong>
+              <p class="ext-debug-help-note">Add to <code>.vscode/launch.json</code>:</p>
+              <pre class="ext-debug-launch-json">{`{
+  "type": "node",
+  "request": "attach",
+  "name": "Attach to Sindri extension",
+  "address": "127.0.0.1",
+  "port": 9229,
+  "sourceMaps": true
+}`}</pre>
+            </div>
+          </div>
+        </Show>
+
+        <Show when={devExtensions().length > 0} fallback={
+          <div class="ext-active-empty">No dev extensions loaded.</div>
+        }>
+          <For each={devExtensions()}>
+            {(record) => (
+              <div class="ext-active-row ext-active-row--stack">
+                <div class="ext-active-row-main">
+                  <span class="ext-active-name">{record.manifest.name ?? record.id}</span>
+                  <span class="ext-active-badge">v{record.manifest.version ?? "?"}</span>
+                  <Show when={debuggerUrls().has(record.id)}
+                    fallback={
+                      <span class="ext-active-badge ext-active-badge--dev" title="Loaded from source — Sindri watches and hot-reloads on save">dev ◉</span>
+                    }
+                  >
+                    <span class="ext-active-badge ext-active-badge--debug" title="CDP debugger session active">◉ debugging</span>
+                  </Show>
+                  <Show when={isTauri()}>
+                    <button
+                      class="settings-btn-secondary"
+                      title={debuggerUrls().has(record.id) ? "Re-attach a fresh CDP session" : "Open a CDP debugger session (debug builds only)"}
+                      onClick={() => handleAttachDebugger(record.id)}
+                    >
+                      {debuggerUrls().has(record.id) ? "Re-attach" : "Attach Debugger"}
+                    </button>
+                    <Show when={debuggerUrls().has(record.id)}>
+                      <button
+                        class="settings-btn-secondary"
+                        title="Close the inspector session and return to idle mode"
+                        onClick={() => handleStopDebugger(record.id)}
+                      >
+                        Stop
+                      </button>
+                    </Show>
+                  </Show>
+                  <button
+                    class="settings-btn-secondary ext-active-uninstall"
+                    onClick={() => handleRemoveDev(record.id)}
+                  >
+                    Remove
+                  </button>
+                </div>
+                <Show when={debuggerUrls().get(record.id)}>
+                  {(url) => (
+                    <div class="ext-debug-url-row">
+                      <code class="ext-debug-url">{url()}</code>
+                      <button
+                        class="settings-btn-secondary ext-debug-copy"
+                        title="Copy WebSocket URL to clipboard"
+                        onClick={() => handleCopyDebugUrl(url())}
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  )}
+                </Show>
+              </div>
+            )}
+          </For>
+        </Show>
+
+        <Show when={isTauri()}>
+          <div class="ext-active-actions">
+            <button
+              class="settings-btn-primary"
+              disabled={loadingSource()}
+              title="Select the manifest.json of a TypeScript extension. Sindri builds it and hot-reloads on every file save."
+              onClick={handleLoadFromSource}
+            >
+              {loadingSource() ? "Building…" : "Load from manifest.json…"}
+            </button>
+          </div>
+        </Show>
+
+        <Show when={!isTauri()}>
+          <div class="langpacks-host-note">
+            Dev extension loading requires the Tauri desktop app.
+          </div>
+        </Show>
+      </Show>
+
+      {/* Status feedback — shared between tabs */}
+      <Show when={status()?.kind === "ok"}>
+        <div class="settings-success-note">
+          {(status() as Extract<InstallStatus, { kind: "ok" }>).name}{" "}
+          v{(status() as Extract<InstallStatus, { kind: "ok" }>).version} activated.
+        </div>
+      </Show>
+      <Show when={status()?.kind === "err"}>
+        <div class="settings-field-error">
+          {(status() as Extract<InstallStatus, { kind: "err" }>).msg}
         </div>
       </Show>
     </div>

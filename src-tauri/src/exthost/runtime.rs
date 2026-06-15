@@ -17,7 +17,10 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use deno_core::v8;
-use deno_core::{extension, op2, JsRuntime, OpState, RuntimeOptions};
+use deno_core::{
+    extension, op2, InspectorSessionProxy, JsRuntime, OpState, PollEventLoopOptions,
+    RuntimeOptions,
+};
 use deno_error::JsErrorBox;
 use tokio::sync::{mpsc, oneshot};
 
@@ -157,6 +160,20 @@ fn op_event_emit(
 /// Shared between the op (JS thread) and ExtensionRuntime (Tauri command thread) via Arc<Mutex>.
 pub type PendingQuickPicks = Arc<Mutex<HashMap<String, oneshot::Sender<Option<String>>>>>;
 
+/// Pending sindri.editor async proxy reads: requestId → oneshot sender for the JSON result string.
+/// Newtype wrapper so OpState can hold both PendingQuickPicks and PendingEditorReads simultaneously
+/// (OpState keys by TypeId; a type alias would collide with PendingQuickPicks).
+pub struct PendingEditorReads(pub Arc<Mutex<HashMap<String, oneshot::Sender<Option<String>>>>>);
+
+impl PendingEditorReads {
+    pub fn new() -> Self {
+        Self(Arc::new(Mutex::new(HashMap::new())))
+    }
+    pub fn clone_inner(&self) -> Self {
+        Self(Arc::clone(&self.0))
+    }
+}
+
 /// Blocks until the frontend delivers a quick-pick result for `request_id`.
 /// Emits `__sindri.ui.quickPickShow` to the frontend (fire-and-forget via event_tx),
 /// then awaits the oneshot that `ExtensionRuntime::resolve_quick_pick` will signal.
@@ -182,7 +199,45 @@ async fn op_ui_show_quick_pick(
     }
 }
 
-extension!(sindri_ext, ops = [op_fs_read, op_fs_write, op_fs_exists, op_fs_glob, op_event_emit, op_env_exec, op_ui_show_quick_pick]);
+/// Async proxy read for sindri.editor document methods (getText, lineAt, positionAt, offsetAt).
+/// Emits "__sindri.editor.readReq" to the webview via the event bus; blocks until the webview
+/// responds via ext_editor_read_result (Tauri command), exactly mirroring op_ui_show_quick_pick.
+#[op2]
+#[string]
+async fn op_editor_request(
+    state: Rc<RefCell<OpState>>,
+    #[string] request_id: String,
+    #[string] req_json: String,
+) -> Result<String, JsErrorBox> {
+    let event_tx: EventTx = state.borrow().borrow::<EventTx>().clone();
+    let pending = state.borrow().borrow::<PendingEditorReads>().clone_inner();
+
+    let (tx, rx) = oneshot::channel::<Option<String>>();
+    pending.0.lock().unwrap().insert(request_id.clone(), tx);
+
+    let payload = format!(
+        r#"{{"requestId":{},"req":{}}}"#,
+        serde_json::to_string(&request_id).unwrap_or_else(|_| format!("{request_id:?}")),
+        req_json,
+    );
+    let _ = event_tx.send(("__sindri.editor.readReq".to_string(), payload));
+
+    match rx.await {
+        Ok(Some(result)) => Ok(result),
+        _ => Ok("null".to_string()),
+    }
+}
+
+/// Read a file as raw bytes and return it as a Uint8Array.
+/// Used by sindri.wasm.load() to get WASM module bytes into the isolate (ADR-0035).
+/// Path must be absolute; resolving relative-to-bundle-dir happens in the JS bootstrap.
+#[op2]
+#[buffer]
+async fn op_wasm_load(#[string] path: String) -> Result<Vec<u8>, JsErrorBox> {
+    tokio::fs::read(&path).await.map_err(|e| JsErrorBox::generic(e.to_string()))
+}
+
+extension!(sindri_ext, ops = [op_fs_read, op_fs_write, op_fs_exists, op_fs_glob, op_event_emit, op_env_exec, op_ui_show_quick_pick, op_editor_request, op_wasm_load]);
 
 /// Sender half of the extension-event channel.
 /// Extensions call `sindri.events.emit(id, payload)` → `op_event_emit` → this sender.
@@ -202,8 +257,20 @@ globalThis.__sindri_events = new Map();
 globalThis.__sindri_tree_views = new Map();
 globalThis.__sindri_status_items = new Map();
 globalThis.__sindri_webview_panels = new Map();
+globalThis.__sindri_decoration_providers = new Map();
 globalThis.__sindri_qp_counter = 0;
 globalThis.__sindri_ext_id = "unknown";
+globalThis.__sindri_editor_req_counter = 0;
+globalThis.__sindri_active_editor = null;
+globalThis.__sindri_visible_editors = [];
+// Injected at activation: absolute path of the directory containing extension.js (ADR-0035).
+globalThis.__sindri_bundle_dir = null;
+// Injected at activation: map of logical binary name → absolute path for bundled binaries (ADR-0036).
+globalThis.__sindri_bin_paths = {};
+// Injected at activation: flat { key: translated } map from the extension's locale bundle (1.5j).
+// Falls back to an empty object; sindri.l10n.t() returns the key itself when no translation found.
+globalThis.__sindri_l10n_bundle = {};
+globalThis.__sindri_locale = "en-US";
 // ADR-0030: console lines are routed to the Extension Logs panel via __sindri.output.line.
 // __sindri_ext_id is injected just before the bundle runs (do_load_and_activate) so all
 // console calls during activate() carry the correct extension id.
@@ -253,6 +320,47 @@ function _wrapEnvOp(op) {
     };
 }
 
+// ── sindri.editor helpers (ADR-0034) ─────────────────────────────────────────
+// _makeTextDocument / _makeTextEditor are closures over the info snapshot
+// pushed by the webview via __sindri.editor.* events.
+function _makeTextDocument(info) {
+    if (!info) return undefined;
+    return {
+        get path() { return info.path; },
+        get languageId() { return info.languageId; },
+        get version() { return info.version; },
+        get lineCount() { return info.lineCount; },
+        async getText(range) {
+            const reqId = 'er:' + (++globalThis.__sindri_editor_req_counter);
+            const raw = await Deno.core.ops.op_editor_request(reqId, JSON.stringify({ op: 'getText', range: range ?? null }));
+            return JSON.parse(raw);
+        },
+        async lineAt(line) {
+            const reqId = 'er:' + (++globalThis.__sindri_editor_req_counter);
+            const raw = await Deno.core.ops.op_editor_request(reqId, JSON.stringify({ op: 'lineAt', line }));
+            return JSON.parse(raw);
+        },
+        async positionAt(offset) {
+            const reqId = 'er:' + (++globalThis.__sindri_editor_req_counter);
+            const raw = await Deno.core.ops.op_editor_request(reqId, JSON.stringify({ op: 'positionAt', offset }));
+            return JSON.parse(raw);
+        },
+        async offsetAt(position) {
+            const reqId = 'er:' + (++globalThis.__sindri_editor_req_counter);
+            const raw = await Deno.core.ops.op_editor_request(reqId, JSON.stringify({ op: 'offsetAt', position }));
+            return JSON.parse(raw);
+        },
+    };
+}
+function _makeTextEditor(info) {
+    if (!info) return undefined;
+    return {
+        document: _makeTextDocument(info),
+        selections: info.selections ?? [],
+        visibleRanges: info.visibleRanges ?? [],
+    };
+}
+
 globalThis.sindri = {
     commands: {
         register(id, cb) {
@@ -270,7 +378,9 @@ globalThis.sindri = {
         get workspaceRoot() { return globalThis.__sindri_workspace_root ?? null; },
         exec: _wrapEnvOp(async (cmd, ...args) => {
             const cwd = globalThis.__sindri_workspace_root ?? null;
-            return Deno.core.ops.op_env_exec(cmd, args, cwd);
+            // Resolve bundled binary: substitute absolute path if declared in contributes.binaries (ADR-0036).
+            const resolved = (globalThis.__sindri_bin_paths ?? {})[cmd] ?? cmd;
+            return Deno.core.ops.op_env_exec(resolved, args, cwd);
         }),
     },
     events: {
@@ -526,6 +636,105 @@ globalThis.sindri = {
                 }
             };
         }
+    },
+    // ADR-0035: sindri.wasm — load and compile a WASM module bundled with the extension.
+    // relPath is relative to __sindri_bundle_dir (parent of extension.js).
+    // Returns a compiled WebAssembly.Module; extension instantiates it with its own imports.
+    wasm: {
+        async load(relPath) {
+            const dir = globalThis.__sindri_bundle_dir;
+            if (!dir) throw new Error("sindri.wasm: bundle dir not available");
+            const sep = (dir.endsWith("/") || dir.endsWith("\\")) ? "" : "/";
+            const abs = dir + sep + String(relPath);
+            const bytes = await Deno.core.ops.op_wasm_load(abs);
+            return WebAssembly.compile(bytes);
+        }
+    },
+    // ADR-0034: sindri.editor — document/text surface for editor-touching extensions.
+    // activeEditor / visibleEditors are last-known snapshots pushed by the webview;
+    // TextDocument methods are async round-trips via op_editor_request.
+    editor: {
+        get activeEditor() { return _makeTextEditor(globalThis.__sindri_active_editor); },
+        get visibleEditors() {
+            return (globalThis.__sindri_visible_editors ?? []).map(_makeTextEditor);
+        },
+        onDidChangeActiveEditor(fn) {
+            return sindri.events.on('__sindri.editor.activeEditorChanged', function(payloadStr) {
+                const info = payloadStr ? JSON.parse(String(payloadStr)) : null;
+                globalThis.__sindri_active_editor = info;
+                fn(_makeTextEditor(info));
+            });
+        },
+        onDidChangeSelection(fn) {
+            return sindri.events.on('__sindri.editor.selectionChanged', function(payloadStr) {
+                const data = JSON.parse(String(payloadStr));
+                if (globalThis.__sindri_active_editor && globalThis.__sindri_active_editor.path === data.path) {
+                    globalThis.__sindri_active_editor = Object.assign({}, globalThis.__sindri_active_editor, { selections: data.selections });
+                }
+                fn({ editor: _makeTextEditor(data), selections: data.selections });
+            });
+        },
+        onDidChangeVisibleRanges(fn) {
+            return sindri.events.on('__sindri.editor.viewportChanged', function(payloadStr) {
+                const data = JSON.parse(String(payloadStr));
+                if (globalThis.__sindri_active_editor && globalThis.__sindri_active_editor.path === data.path) {
+                    globalThis.__sindri_active_editor = Object.assign({}, globalThis.__sindri_active_editor, { visibleRanges: data.visibleRanges });
+                }
+                fn({ editor: _makeTextEditor(data), visibleRanges: data.visibleRanges });
+            });
+        },
+        onDidOpenDocument(fn) {
+            return sindri.events.on('__sindri.editor.documentOpened', function(payloadStr) {
+                const info = JSON.parse(String(payloadStr));
+                fn(_makeTextDocument(info));
+            });
+        },
+        onDidCloseDocument(fn) {
+            return sindri.events.on('__sindri.editor.documentClosed', function(payloadStr) {
+                const info = JSON.parse(String(payloadStr));
+                fn(_makeTextDocument(info));
+            });
+        },
+        onDidChangeDocument(fn) {
+            return sindri.events.on('__sindri.editor.documentChanged', function(payloadStr) {
+                const data = JSON.parse(String(payloadStr));
+                if (globalThis.__sindri_active_editor && globalThis.__sindri_active_editor.path === data.path) {
+                    globalThis.__sindri_active_editor = Object.assign({}, globalThis.__sindri_active_editor, { version: data.version, lineCount: data.lineCount });
+                }
+                fn({ document: _makeTextDocument(data) });
+            });
+        },
+        registerDecorationProvider(id, provider) {
+            globalThis.__sindri_decoration_providers.set(id, provider);
+            const configKeys = (provider.configKeys && Array.isArray(provider.configKeys)) ? provider.configKeys : [];
+            const css = (typeof provider.css === 'string') ? provider.css : '';
+            const extId = globalThis.__sindri_ext_id ?? 'unknown';
+            sindri.events.emit('__sindri.editor.decorationProviderRegistered', JSON.stringify({id, extId, configKeys, css}));
+            return {
+                dispose() {
+                    globalThis.__sindri_decoration_providers.delete(id);
+                    sindri.events.emit('__sindri.editor.decorationProviderDisposed', id);
+                }
+            };
+        },
+    },
+    // 1.5j: localisation API — translate UI strings contributed by extensions.
+    // Bundle file: contributes.l10n directory / bundle.l10n.{locale}.json (flat { key: string } map).
+    // Phase 1: locale is always en-US; t() falls back to the key if no translation is found.
+    // Args: simple {name} placeholder substitution — pass { name: value } object.
+    l10n: {
+        t(key, args) {
+            let str = (globalThis.__sindri_l10n_bundle ?? {})[key];
+            if (str === undefined || str === null) str = String(key);
+            if (args && typeof args === 'object') {
+                for (const [k, v] of Object.entries(args)) {
+                    str = str.split('{' + k + '}').join(String(v));
+                }
+            }
+            return str;
+        },
+        get bundle() { return Object.assign({}, globalThis.__sindri_l10n_bundle ?? {}); },
+        get locale() { return globalThis.__sindri_locale ?? "en-US"; },
     }
 };
 "#;
@@ -621,10 +830,15 @@ type Reply<T> = oneshot::Sender<Result<T, ExthostError>>;
 
 enum Msg {
     EvalTest(Reply<Vec<String>>),
-    LoadAndActivate { path: String, ext_id: Option<String>, workspace_root: Option<String>, reply: Reply<()> },
+    LoadAndActivate { path: String, ext_id: Option<String>, workspace_root: Option<String>, bin_paths: HashMap<String, String>, l10n_bundle: Option<String>, reply: Reply<()> },
     DispatchCommand { id: String, reply: Reply<String> },
     DispatchEvent { id: String, payload: String, reply: Reply<()> },
     TreeViewGetChildren { tree_id: String, element_id: Option<String>, reply: Reply<String> },
+    ProvideDecorations { provider_id: String, ctx_json: String, reply: Reply<String> },
+    /// ADR-0037: a CDP client attached; inject the session into V8 and enter debug mode.
+    InspectorConnect { proxy: InspectorSessionProxy },
+    /// ADR-0037: user requested debug shutdown — exit debug mode and close all inspector sessions.
+    StopDebug,
 }
 
 // ── public handle (Send) ──────────────────────────────────────────────────────
@@ -632,6 +846,7 @@ enum Msg {
 pub struct ExtensionRuntime {
     tx: mpsc::UnboundedSender<Msg>,
     pub pending_quick_picks: PendingQuickPicks,
+    pub pending_editor_reads: PendingEditorReads,
 }
 
 impl ExtensionRuntime {
@@ -641,15 +856,17 @@ impl ExtensionRuntime {
     ) -> Result<Self, ExthostError> {
         let (tx, rx) = mpsc::unbounded_channel();
         let pending_quick_picks: PendingQuickPicks = Arc::new(Mutex::new(HashMap::new()));
-        let pending_for_loop = pending_quick_picks.clone();
+        let pending_editor_reads = PendingEditorReads::new();
+        let pending_qp_for_loop = pending_quick_picks.clone();
+        let pending_er_for_loop = pending_editor_reads.clone_inner();
         std::thread::spawn(move || {
             tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
                 .expect("js thread tokio rt")
-                .block_on(runtime_loop(env, event_tx, pending_for_loop, rx));
+                .block_on(runtime_loop(env, event_tx, pending_qp_for_loop, pending_er_for_loop, rx));
         });
-        Ok(Self { tx, pending_quick_picks })
+        Ok(Self { tx, pending_quick_picks, pending_editor_reads })
     }
 
     /// Resolve (or cancel) a pending `showQuickPick` request.
@@ -662,6 +879,28 @@ impl ExtensionRuntime {
         }
     }
 
+    /// Resolve a pending sindri.editor proxy read (getText, lineAt, …).
+    /// Same pattern as resolve_quick_pick — signals the oneshot in op_editor_request directly,
+    /// without touching the JS message queue, so there is no deadlock.
+    pub fn resolve_editor_read(&self, request_id: &str, result: Option<String>) {
+        if let Some(tx) = self.pending_editor_reads.0.lock().unwrap().remove(request_id) {
+            let _ = tx.send(result);
+        }
+    }
+
+    /// ADR-0037: deliver an inspector session proxy to the JS thread.
+    /// Wakes the thread out of idle `recv()` and switches it to debug mode.
+    /// No-op if the channel is closed (runtime already shut down).
+    pub fn connect_inspector(&self, proxy: InspectorSessionProxy) {
+        let _ = self.tx.send(Msg::InspectorConnect { proxy });
+    }
+
+    /// ADR-0037: exit debug mode and close all active inspector sessions.
+    /// No-op if not in debug mode or channel is closed.
+    pub fn stop_debug(&self) {
+        let _ = self.tx.send(Msg::StopDebug);
+    }
+
     /// M0 smoke test: verify console capture and basic JS eval.
     pub async fn eval_test(&self) -> Result<Vec<String>, ExthostError> {
         let (tx, rx) = oneshot::channel();
@@ -672,11 +911,15 @@ impl ExtensionRuntime {
     /// Execute an IIFE-bundled extension and call its activate(context) export.
     /// `ext_id` is injected as `globalThis.__sindri_ext_id` before the bundle runs
     /// so console output and `sindri.output` channels are attributed correctly (ADR-0030).
+    /// `bin_paths` is injected as `globalThis.__sindri_bin_paths` for bundled binary resolution (ADR-0036).
+    /// `l10n_bundle` is a JSON string (flat key→translation map) injected as `globalThis.__sindri_l10n_bundle`.
     pub async fn load_and_activate(
         &self,
         bundle_path: &str,
         ext_id: Option<&str>,
         workspace_root: Option<&str>,
+        bin_paths: HashMap<String, String>,
+        l10n_bundle: Option<String>,
     ) -> Result<(), ExthostError> {
         let (tx, rx) = oneshot::channel();
         self.tx
@@ -684,6 +927,8 @@ impl ExtensionRuntime {
                 path: bundle_path.to_owned(),
                 ext_id: ext_id.map(|s| s.to_owned()),
                 workspace_root: workspace_root.map(|s| s.to_owned()),
+                bin_paths,
+                l10n_bundle,
                 reply: tx,
             })
             .map_err(|_| ExthostError::RuntimeGone)?;
@@ -731,6 +976,24 @@ impl ExtensionRuntime {
             .map_err(|_| ExthostError::RuntimeGone)?;
         rx.await.map_err(|_| ExthostError::RuntimeGone)?
     }
+
+    /// Call `provide(ctx)` on the decoration provider registered under `provider_id`.
+    /// `ctx_json` is a JSON-encoded `DecorationContext`. Returns a JSON-encoded `DecorationDatum[]`.
+    pub async fn provide_decorations(
+        &self,
+        provider_id: &str,
+        ctx_json: &str,
+    ) -> Result<String, ExthostError> {
+        let (tx, rx) = oneshot::channel();
+        self.tx
+            .send(Msg::ProvideDecorations {
+                provider_id: provider_id.to_owned(),
+                ctx_json: ctx_json.to_owned(),
+                reply: tx,
+            })
+            .map_err(|_| ExthostError::RuntimeGone)?;
+        rx.await.map_err(|_| ExthostError::RuntimeGone)?
+    }
 }
 
 // ── runtime thread ────────────────────────────────────────────────────────────
@@ -739,11 +1002,16 @@ async fn runtime_loop(
     env: Arc<dyn crate::env::Environment>,
     event_tx: Option<EventTx>,
     pending_quick_picks: PendingQuickPicks,
+    pending_editor_reads: PendingEditorReads,
     mut rx: mpsc::UnboundedReceiver<Msg>,
 ) {
+    let inspector_enabled =
+        cfg!(debug_assertions) || std::env::var("SINDRI_INSPECT").is_ok();
+
     let mut rt = {
         let mut rt = JsRuntime::new(RuntimeOptions {
             extensions: vec![sindri_ext::init()],
+            inspector: inspector_enabled,
             ..Default::default()
         });
         {
@@ -751,6 +1019,7 @@ async fn runtime_loop(
             let mut state = op_state_rc.borrow_mut();
             state.put(env);
             state.put(pending_quick_picks);
+            state.put(pending_editor_reads);
             if let Some(tx) = event_tx {
                 state.put(tx);
             }
@@ -764,28 +1033,78 @@ async fn runtime_loop(
     // reading the adjacent .js.map file. Used to translate V8 stack frames.
     let mut source_maps: SourceMaps = HashMap::new();
 
-    while let Some(msg) = rx.recv().await {
-        match msg {
-            Msg::EvalTest(reply) => {
-                let _ = reply.send(do_eval_test(&mut rt).await);
-            }
-            Msg::LoadAndActivate { path, ext_id, workspace_root, reply } => {
-                let _ = reply.send(
-                    do_load_and_activate(&mut rt, &path, ext_id.as_deref(), workspace_root.as_deref(), &mut source_maps).await
-                );
-            }
-            Msg::DispatchCommand { id, reply } => {
-                let _ = reply.send(do_dispatch_command(&mut rt, &id, &source_maps).await);
-            }
-            Msg::DispatchEvent { id, payload, reply } => {
-                let _ = reply.send(do_dispatch_event(&mut rt, &id, &payload, &source_maps).await);
-            }
-            Msg::TreeViewGetChildren { tree_id, element_id, reply } => {
-                let _ = reply.send(
-                    do_tree_view_get_children(&mut rt, &tree_id, element_id.as_deref(), &source_maps).await
-                );
+    // ADR-0037 §4: dual-mode loop.
+    //   Idle mode   — block on rx.recv(); zero V8 polling cost.
+    //   Debug mode  — select! over rx and run_event_loop so CDP traffic is serviced.
+    // Mode transition: Idle → Debug on InspectorConnect; Debug → Idle when last
+    // CDP session disconnects (sessions_state().has_active becomes false).
+    'outer: loop {
+        let Some(msg) = rx.recv().await else { break };
+
+        if inspector_enabled {
+            if let Msg::InspectorConnect { proxy } = msg {
+                rt.inspector().get_session_sender().unbounded_send(proxy).ok();
+                // Debug mode: keep polling V8 so inspector sessions are serviced.
+                // was_ever_active guards against exiting before DevTools completes its
+                // initial CDP handshake (Debugger.enable), which can take a round-trip.
+                let mut was_ever_active = false;
+                loop {
+                    tokio::select! {
+                        biased;
+                        maybe_msg = rx.recv() => match maybe_msg {
+                            None => break 'outer,
+                            Some(Msg::InspectorConnect { proxy }) => {
+                                rt.inspector().get_session_sender().unbounded_send(proxy).ok();
+                            }
+                            Some(Msg::StopDebug) => break, // user-requested shutdown
+                            Some(other) => dispatch_msg(&mut rt, other, &mut source_maps).await,
+                        },
+                        _ = rt.run_event_loop(PollEventLoopOptions { wait_for_inspector: false }) => {}
+                    }
+                    let now_active = rt.inspector().sessions_state().has_active;
+                    if now_active { was_ever_active = true; }
+                    // Only exit debug mode after we have confirmed a session was established
+                    // and it has since disconnected (avoids premature exit during handshake).
+                    if was_ever_active && !now_active {
+                        break;
+                    }
+                }
+                continue 'outer;
             }
         }
+
+        dispatch_msg(&mut rt, msg, &mut source_maps).await;
+    }
+}
+
+async fn dispatch_msg(rt: &mut JsRuntime, msg: Msg, source_maps: &mut SourceMaps) {
+    match msg {
+        Msg::EvalTest(reply) => {
+            let _ = reply.send(do_eval_test(rt).await);
+        }
+        Msg::LoadAndActivate { path, ext_id, workspace_root, bin_paths, l10n_bundle, reply } => {
+            let _ = reply.send(
+                do_load_and_activate(rt, &path, ext_id.as_deref(), workspace_root.as_deref(), &bin_paths, l10n_bundle.as_deref(), source_maps).await
+            );
+        }
+        Msg::DispatchCommand { id, reply } => {
+            let _ = reply.send(do_dispatch_command(rt, &id, source_maps).await);
+        }
+        Msg::DispatchEvent { id, payload, reply } => {
+            let _ = reply.send(do_dispatch_event(rt, &id, &payload, source_maps).await);
+        }
+        Msg::TreeViewGetChildren { tree_id, element_id, reply } => {
+            let _ = reply.send(
+                do_tree_view_get_children(rt, &tree_id, element_id.as_deref(), source_maps).await
+            );
+        }
+        Msg::ProvideDecorations { provider_id, ctx_json, reply } => {
+            let _ = reply.send(
+                do_provide_decorations(rt, &provider_id, &ctx_json, source_maps).await
+            );
+        }
+        Msg::InspectorConnect { .. } => {} // only reached when inspector_enabled=false
+        Msg::StopDebug => {}               // only reached when inspector_enabled=false
     }
 }
 
@@ -834,6 +1153,8 @@ async fn do_load_and_activate(
     bundle_path: &str,
     ext_id: Option<&str>,
     workspace_root: Option<&str>,
+    bin_paths: &HashMap<String, String>,
+    l10n_bundle: Option<&str>,
     source_maps: &mut SourceMaps,
 ) -> Result<(), ExthostError> {
     let source = tokio::fs::read_to_string(bundle_path)
@@ -843,8 +1164,8 @@ async fn do_load_and_activate(
     // Try to load the adjacent source map so stack frames can be translated.
     try_load_source_map(bundle_path, source_maps).await;
 
-    // Inject runtime globals before the bundle: ext_id for log attribution (ADR-0030)
-    // and workspace_root so exec() defaults to the open workspace directory.
+    // Inject runtime globals before the bundle: ext_id (ADR-0030 log attribution),
+    // workspace_root (exec cwd default), and bundle_dir (ADR-0035 WASM path resolution).
     {
         let ext_id_js = match ext_id {
             Some(id) => format!("{id:?}"),
@@ -854,16 +1175,42 @@ async fn do_load_and_activate(
             Some(r) => format!("{r:?}"),
             None => "null".to_owned(),
         };
+        let bundle_dir_js = Path::new(bundle_path)
+            .parent()
+            .and_then(|p| p.to_str())
+            .map(|s| format!("{s:?}"))
+            .unwrap_or_else(|| "null".to_owned());
+        let bin_paths_js = serde_json::to_string(bin_paths)
+            .unwrap_or_else(|_| "{}".to_owned());
+        // Validate the l10n bundle JSON before injecting; fall back to {} on malformed input.
+        let l10n_bundle_js = l10n_bundle
+            .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok())
+            .filter(|v| v.is_object())
+            .and_then(|v| serde_json::to_string(&v).ok())
+            .unwrap_or_else(|| "{}".to_owned());
         let inject = format!(
-            "globalThis.__sindri_ext_id = {ext_id_js}; globalThis.__sindri_workspace_root = {workspace_root_js};"
+            "globalThis.__sindri_ext_id = {ext_id_js}; \
+             globalThis.__sindri_workspace_root = {workspace_root_js}; \
+             globalThis.__sindri_bundle_dir = {bundle_dir_js}; \
+             globalThis.__sindri_bin_paths = {bin_paths_js}; \
+             globalThis.__sindri_l10n_bundle = {l10n_bundle_js};"
         );
         rt.execute_script("<sindri-globals>", inject)
             .map_err(|e| ExthostError::Js(e.to_string()))?;
     }
 
-    // Use bundle_path as the V8 script specifier (not "<bundle>") so that any
-    // error stack frames reference the real path and can be source-map-translated.
-    rt.execute_script(bundle_path.to_owned(), source)
+    // Prefix with file:// so V8 Inspector reports a proper URL in Debugger.scriptParsed.
+    // Chrome DevTools requires a URL scheme to display the script in the Sources panel
+    // and to resolve inline source maps embedded in the bundle.
+    let script_url = if bundle_path.starts_with('/') {
+        format!("file://{bundle_path}")
+    } else if bundle_path.len() > 2 && bundle_path.as_bytes()[1] == b':' {
+        // Windows: C:\... → file:///C:/...
+        format!("file:///{}", bundle_path.replace('\\', "/"))
+    } else {
+        bundle_path.to_owned()
+    };
+    rt.execute_script(script_url, source)
         .map_err(|e| ExthostError::Js(translate_stack(&e.to_string(), source_maps)))?;
 
     // Call activate; wrap in async IIFE so both sync and async activate work uniformly.
@@ -1036,6 +1383,54 @@ async fn do_tree_view_get_children(
 
     let res_val = rt
         .execute_script("<tv-result>", "globalThis.__tv_result")
+        .map_err(|e| ExthostError::Js(e.to_string()))?;
+    Ok(v8_str(rt, &res_val))
+}
+
+/// Call `provide(ctx)` on the decoration provider registered under `provider_id`.
+/// `ctx_json` is a JSON-encoded `DecorationContext`. Returns a JSON-encoded `DecorationDatum[]`.
+async fn do_provide_decorations(
+    rt: &mut JsRuntime,
+    provider_id: &str,
+    ctx_json: &str,
+    source_maps: &SourceMaps,
+) -> Result<String, ExthostError> {
+    let ctx_json_str = serde_json::to_string(ctx_json)
+        .unwrap_or_else(|_| "\"{}\"".to_string());
+    let script = format!(
+        r#"(async () => {{
+            globalThis.__decor_result = null;
+            globalThis.__decor_err = null;
+            const __providers = globalThis.__sindri_decoration_providers;
+            const __provider = __providers ? __providers.get({provider_id:?}) : undefined;
+            if (!__provider) {{ globalThis.__decor_result = "[]"; return; }}
+            try {{
+                const __ctx = JSON.parse({ctx_json_str});
+                const __result = await __provider.provide(__ctx);
+                globalThis.__decor_result = JSON.stringify(Array.isArray(__result) ? __result : []);
+            }} catch (e) {{
+                globalThis.__decor_err = e.stack ?? String(e.message ?? e);
+            }}
+        }})();"#,
+        provider_id = provider_id,
+        ctx_json_str = ctx_json_str,
+    );
+
+    rt.execute_script("<provide-decorations>", script)
+        .map_err(|e| ExthostError::Js(e.to_string()))?;
+
+    rt.run_event_loop(Default::default()).await
+        .map_err(|e| ExthostError::Js(translate_stack(&e.to_string(), source_maps)))?;
+
+    let err_val = rt
+        .execute_script("<decor-err>", "globalThis.__decor_err")
+        .map_err(|e| ExthostError::Js(e.to_string()))?;
+    if let Some(raw) = v8_str_maybe(rt, &err_val) {
+        return Err(ExthostError::CommandFailed(translate_stack(&raw, source_maps)));
+    }
+
+    let res_val = rt
+        .execute_script("<decor-result>", "globalThis.__decor_result")
         .map_err(|e| ExthostError::Js(e.to_string()))?;
     Ok(v8_str(rt, &res_val))
 }

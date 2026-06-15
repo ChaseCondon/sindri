@@ -1,9 +1,11 @@
 # ADR-0020: Extension distribution, manifest & marketplace (git-repo registries)
 
-- Status: Accepted
+- Status: Accepted · §3 index format superseded by [ADR-0038](0038-manifest-type-and-id-resolution.md)
 - Date: 2026-06-03
 - Extends: [ADR-0006](0006-extension-api-from-day-one.md), [ADR-0013](0013-product-identity-and-polyglot-thesis.md), [ADR-0015](0015-js-extension-host-runtime.md), [ADR-0019](0019-theme-and-icon-system.md)
 - Constrained by: [ADR-0017](0017-browser-pwa-target.md) — the core-transport seam applies to registry fetch
+
+> **Addendum (2026-06-15, [ADR-0038](0038-manifest-type-and-id-resolution.md)):** the §3 flat folder-path index is replaced by a flat `entries: [{ id, path, type }]` list; manifests gain an authoritative `type` field; member/`extends` resolution is by id, not path-guessing.
 
 ## Context
 

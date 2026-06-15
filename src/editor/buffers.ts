@@ -2,6 +2,7 @@ import { createStore, produce } from "solid-js/store";
 import { EditorState } from "@codemirror/state";
 import {
   EditorView,
+  type ViewUpdate,
   keymap,
   lineNumbers,
   highlightActiveLine,
@@ -48,6 +49,45 @@ export const occKey = (groupId: string, bufferId: string): string => `${groupId}
 export const editorStates = new Map<string, EditorState>();
 export const savedTexts = new Map<string, string>();
 export const scrollTops = new Map<string, number>();
+
+// Monotonic doc version per buffer — increments on every docChanged (ADR-0034).
+export const docVersions = new Map<string, number>();
+
+// ── Editor bridge hooks (ADR-0034) ───────────────────────────────────────────
+// editor-state-bridge.ts registers listeners here at import time;
+// buffers.ts does NOT import from bridge (no circular deps).
+
+type UpdateListenerFn = (update: ViewUpdate, bufferId: string) => void;
+const _editorUpdateListeners: UpdateListenerFn[] = [];
+export function registerEditorUpdateListener(fn: UpdateListenerFn): void {
+  _editorUpdateListeners.push(fn);
+}
+
+type BufferLifecycleFn = (id: string, path: string | null, name: string) => void;
+const _onBufferCreatedCbs: BufferLifecycleFn[] = [];
+const _onBufferRemovedCbs: BufferLifecycleFn[] = [];
+export function onBufferCreated(fn: BufferLifecycleFn): void { _onBufferCreatedCbs.push(fn); }
+export function onBufferRemoved(fn: BufferLifecycleFn): void { _onBufferRemovedCbs.push(fn); }
+
+// Maps file name extension to a canonical language ID string (VS Code convention).
+export function languageIdFor(name: string): string {
+  const ext = name.split(".").pop()?.toLowerCase() ?? "";
+  switch (ext) {
+    case "js": case "jsx": case "mjs": case "cjs": return "javascript";
+    case "ts": case "tsx": return "typescript";
+    case "py": case "pyw": return "python";
+    case "rs": return "rust";
+    case "json": case "jsonc": return "json";
+    case "html": case "htm": return "html";
+    case "css": case "scss": case "less": return "css";
+    case "md": case "mdx": return "markdown";
+    case "cpp": case "cc": case "cxx": case "h": case "hpp": return "cpp";
+    case "c": return "c";
+    case "java": return "java";
+    case "go": return "go";
+    default: return "plaintext";
+  }
+}
 
 let _saveHandler: (() => void) | null = null;
 export function registerSaveHandler(fn: () => void): void {
@@ -124,6 +164,15 @@ export function buildEditorState(bufferId: string, doc: string, name: string): E
         ...historyKeymap,
       ]),
       EditorView.updateListener.of((u) => {
+        // Fire bridge listeners for selection/doc/viewport events (ADR-0034).
+        if (u.selectionSet || u.docChanged || u.viewportChanged) {
+          for (const fn of _editorUpdateListeners) fn(u, bufferId);
+        }
+        // Increment doc version on every document change.
+        if (u.docChanged) {
+          docVersions.set(bufferId, (docVersions.get(bufferId) ?? 0) + 1);
+        }
+        // Existing dirty tracking.
         if (u.transactions.length === 0) return;
         if (!u.docChanged) return;
         const saved = savedTexts.get(bufferId) ?? "";
@@ -141,11 +190,16 @@ export function buildEditorState(bufferId: string, doc: string, name: string): E
 
 export function createBuffer(id: string, path: string | null, name: string, contents: string): void {
   savedTexts.set(id, contents);
+  docVersions.set(id, 0);
   setRegistry("buffers", id, { id, path, name, dirty: false });
+  for (const fn of _onBufferCreatedCbs) fn(id, path, name);
 }
 
 export function removeBuffer(id: string): void {
+  const buf = registry.buffers[id];
+  for (const fn of _onBufferRemovedCbs) fn(id, buf?.path ?? null, buf?.name ?? "");
   savedTexts.delete(id);
+  docVersions.delete(id);
   setRegistry(produce((s) => { delete s.buffers[id]; }));
 }
 

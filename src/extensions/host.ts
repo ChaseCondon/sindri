@@ -28,6 +28,10 @@ export interface ExtHostClient {
   quickPickResult(requestId: string, item: string | null): Promise<void>;
   /** Forward a postMessage from a webview iframe to the extension provider's onMessage handler. */
   webviewPanelMessage(panelId: string, payload: string): Promise<void>;
+  /** Deliver the webview's response to a sindri.editor async proxy read (getText, lineAt, …). */
+  editorReadResult(requestId: string, result: string | null): Promise<void>;
+  /** Call provide(ctx) on a registered decoration provider; returns JSON-encoded DecorationDatum[]. extId routes to the correct V8 isolate (ADR-0025 §2). */
+  provideDecorations(extId: string, providerId: string, ctxJson: string): Promise<string>;
 }
 
 // ── Tauri implementation ──────────────────────────────────────────────────────
@@ -64,11 +68,19 @@ class TauriExtHostClient implements ExtHostClient {
   }
 
   async quickPickResult(requestId: string, item: string | null): Promise<void> {
-    await invoke("ext_quick_pick_result", { request_id: requestId, item });
+    await invoke("ext_quick_pick_result", { requestId, item });
   }
 
   async webviewPanelMessage(panelId: string, payload: string): Promise<void> {
-    await invoke("ext_webview_panel_message", { panel_id: panelId, payload });
+    await invoke("ext_webview_panel_message", { panelId, payload });
+  }
+
+  async editorReadResult(requestId: string, result: string | null): Promise<void> {
+    await invoke("ext_editor_read_result", { requestId, result });
+  }
+
+  async provideDecorations(extId: string, providerId: string, ctxJson: string): Promise<string> {
+    return invoke<string>("ext_editor_provide_decorations", { extId, providerId, ctxJson });
   }
 }
 
@@ -85,6 +97,8 @@ class BrowserExtHostClient implements ExtHostClient {
   async treeViewGetChildren(_treeId: string, _elementId?: string): Promise<string> { return "[]"; }
   async quickPickResult(_requestId: string, _item: string | null): Promise<void> {}
   async webviewPanelMessage(_panelId: string, _payload: string): Promise<void> {}
+  async editorReadResult(_requestId: string, _result: string | null): Promise<void> {}
+  async provideDecorations(_extId: string, _providerId: string, _ctxJson: string): Promise<string> { return "[]"; }
 }
 
 // ── Singleton + convenience exports ──────────────────────────────────────────
@@ -121,4 +135,12 @@ export function deliverQuickPickResult(requestId: string, item: string | null): 
 
 export function deliverWebviewPanelMessage(panelId: string, payload: string): Promise<void> {
   return _extHostClient.webviewPanelMessage(panelId, payload);
+}
+
+export function deliverEditorReadResult(requestId: string, result: string | null): Promise<void> {
+  return _extHostClient.editorReadResult(requestId, result);
+}
+
+export function provideExtDecorations(extId: string, providerId: string, ctxJson: string): Promise<string> {
+  return _extHostClient.provideDecorations(extId, providerId, ctxJson);
 }

@@ -94,7 +94,7 @@ The extension API is not real until first-party features are built on it. Each s
 
 **1.5j — Localisation API** — `sindri.ui.registerLocale(locale, translations)` — extension provides a partial `Record<string, string>` keyed to Sindri UI string IDs; untranslated keys fall back to `en-us`. Validation: `sindri-en-gb` translates US English strings to British English spelling. This is also the reference for third-party language packs.
 
-**1.5k — V8 Inspector / DevTools attach** — wire `deno_core`'s inspector to a WebSocket (`ws://localhost:9229`). Has real unknowns in the `deno_core` inspector API — reach for **Opus** if it goes hairy.
+**1.5k — V8 Inspector / DevTools attach** ✅ — wire `deno_core`'s inspector to a WebSocket (`ws://127.0.0.1:9229`). CDP gateway in `inspector_gateway.rs`; dual-mode JS thread loop; "Attach Debugger" button in SettingsModal dev extensions row. See ADR-0037.
 
 **1.5l — Extension CLI: `sindri ext`** — `sindri ext create --template <host-only|react-webview|svelte-webview>` generates the directory structure, `tsconfig.json`, `manifest.json`, and `package.json` with `bun run build` and `bun run dev` scripts. `sindri ext build [path]` wraps `build-extension.ts` as a proper named command. The ported extensions from 1.5c are the reference implementations; every generated extension ships `bun run build` and `bun run dev` as first-class scripts so authors never have to read the build internals.
 
@@ -110,6 +110,8 @@ The extension API is not real until first-party features are built on it. Each s
 
 > **Webview sandbox — by design:** Extension webviews run in a null-origin `<iframe>` with no access to `sindri.*` APIs. All data exchange goes through `postMessage`. This is intentional: the sandboxed iframe is the security boundary that keeps webview code out of the host process. It also means `sindri.env.exec` is deliberately unavailable inside webviews — extensions that need exec results in their webview must call exec in the host script and relay the output via `postMessage`. Document this pattern clearly in CONTRIBUTING.md and the scaffold template's generated README.
 
+🚦 **End-of-phase review** — hard gate (full review + remediation roadmap) before the next phase. Protocol: [end-of-phase-review.md](../process/end-of-phase-review.md).
+
 ---
 
 ## Phase 2 — Tree-sitter syntax
@@ -120,6 +122,8 @@ The extension API is not real until first-party features are built on it. Each s
 - **CM6 decoration bridge** — inject highlight spans as CM6 decorations. Async: render stale tokens immediately, reparse in Rust, reconcile. Never blocks a scroll frame (ADR-0003 hard constraint).
 - **Grammars: TypeScript + Rust first** — validates the bridge. TypeScript because Sindri itself is TypeScript; Rust because it's the first language pack.
 - **Grammar loader** — extension contributes a grammar via `contributes.grammars[].path`; the loader fetches the WASM and registers it with the Rust bridge.
+
+🚦 **End-of-phase review** — hard gate (full review + remediation roadmap) before the next phase. Protocol: [end-of-phase-review.md](../process/end-of-phase-review.md).
 
 ---
 
@@ -160,6 +164,8 @@ These are **first-party core features expected of an IDE** — not extension sam
 |---|---|
 | **Diff engine** | Structural text diff; feeds Git integration (Phase 10) merge views and diff panels |
 
+🚦 **End-of-phase review** — hard gate (full review + remediation roadmap) before the next phase. Protocol: [end-of-phase-review.md](../process/end-of-phase-review.md).
+
 ---
 
 ## Phase 4 — LSP host
@@ -172,6 +178,8 @@ These are **first-party core features expected of an IDE** — not extension sam
 - **IntelliSense popup** — CM6 completion system, non-blocking, debounced. Icons per item kind. Docs side-panel on hover (ADR-0011).
 - **Diagnostics panel** — problem list, gutter markers, squiggles.
 - **Inline completion / ghost text** — `InlineCompletionProvider` interface; first provider is LSP-driven (ADR-0011). AI provider is a later opt-in drop-in, not a core dependency.
+
+🚦 **End-of-phase review** — hard gate (full review + remediation roadmap) before the next phase. Protocol: [end-of-phase-review.md](../process/end-of-phase-review.md).
 
 ---
 
@@ -187,6 +195,8 @@ These are **first-party core features expected of an IDE** — not extension sam
 
 > **Contribution-point pattern — generalize when the second case lands.** The Test Explorer is the **canonical example of "core-rendered surface, extension-fed via a typed provider contract."** An extension hooks into it by contributing a SAP adapter (`contributes.taskAdapters`), never by reaching into panel internals — the panel is core, the *provider* is the extension. SAP (ADR-0014) is the run/test-specific instance of this. DAP (Phase 6, `registerAdapter`) will be the second. **When the third core-surface-with-extension-hooks appears, write an ADR generalizing the "provider registration into a core surface" pattern** so each new core panel doesn't reinvent its own contribution shape. Until then, SAP + DAP are the reference instances; don't over-abstract early.
 
+🚦 **End-of-phase review** — hard gate (full review + remediation roadmap) before the next phase. Protocol: [end-of-phase-review.md](../process/end-of-phase-review.md).
+
 ---
 
 ## Phase 6 — DAP / Debug
@@ -195,6 +205,8 @@ These are **first-party core features expected of an IDE** — not extension sam
 - **`sindri.dap.registerAdapter` op** — extension registers an adapter.
 - **Debug UI** — call stack panel, variables + watch panel, breakpoints panel, gutter breakpoint markers (click to toggle), step over / into / out / continue controls, exception display.
 - **CodeLLDB integration** — Rust + C/C++ debug end-to-end via `sindri.lang.rust`.
+
+🚦 **End-of-phase review** — hard gate (full review + remediation roadmap) before the next phase. Protocol: [end-of-phase-review.md](../process/end-of-phase-review.md).
 
 ---
 
@@ -206,6 +218,8 @@ These are **first-party core features expected of an IDE** — not extension sam
 - **Extension signing + verification** (ADR-0020) — publisher keypairs, `SHA-256` bundle signing, verifier on install. Trust levels: Sindri-signed (first-party) → community TOFU → unsigned warning. The `.sinxt` packaging pipeline groundwork lands here (the full marketplace backend is Phase 14).
 - **Workspace Trust UI** — "Do you trust the extensions in this workspace?" prompt on first open of an unrecognized workspace. Restricts exec and net permissions for untrusted workspaces until the user grants trust.
 - **Marketplace trust chain** — the broker's allowlist enforcement (ADR-0027) is validated against the signed manifest; a tampered `manifest.json` fails signature verification before the allowlist is even consulted.
+
+🚦 **End-of-phase review** — hard gate (full review + remediation roadmap) before the next phase. Protocol: [end-of-phase-review.md](../process/end-of-phase-review.md).
 
 ---
 
@@ -223,6 +237,8 @@ These are **first-party core features expected of an IDE** — not extension sam
 - **`sindri` CLI** — `sindri open [path]` opens a project from the terminal (`code .` equivalent). `sindri ext create/build/install` are the extension authoring tools (scaffold and build land in 1.5l; `install <url-or-path>` lands here, consuming the `.sinxt` pipeline from 1.5d/e). Distributed with every platform package; shell integration added to macOS/Linux/Windows installers. This is the terminal-native entry point for the daily loop — no Finder/Explorer required.
 - **`sindri ext init-ci`** — scaffolds `.github/workflows/{pr-check,release,nightly}.yml` in an extension repo, configured to call the Sindri-owned reusable workflow (see 14.1). Detects single-extension vs. monorepo layout, installs Changesets, sets branch protection via `gh`. Zero config for the author: run once, push, done. Ships bundled in the Phase 8 `sindri` CLI.
 - **🏁 Self-hosting milestone** — Sindri's own codebase (Rust + TypeScript) developed entirely inside Sindri: rust-analyzer LSP on both layers, `cargo test` in the test panel, push via Git integration. **Proof of the polyglot promise.**
+
+🚦 **End-of-phase review** — hard gate (full review + remediation roadmap) before the next phase. Protocol: [end-of-phase-review.md](../process/end-of-phase-review.md).
 
 ---
 
@@ -298,6 +314,8 @@ Extension install path: `app_data_dir/extensions/<id>/<version>/` (resolved via 
 
 The CLI (`sindri open`, `sindri ext`) built in Phase 8 ships bundled into every platform installer. The installer registers it as a shell command: `$PATH` entry on macOS/Linux, `%PATH%` on Windows. No separate download.
 
+🚦 **End-of-phase review** — hard gate (full review + remediation roadmap) before the next phase. Protocol: [end-of-phase-review.md](../process/end-of-phase-review.md).
+
 ---
 
 ## Phase 9 — Go language support
@@ -311,6 +329,8 @@ The CLI (`sindri open`, `sindri ext`) built in Phase 8 ships bundled into every 
   - `sindri.go.tasks` — `go test ./...` discovery + streaming, `go build`, `go run`. Module-aware: detects `go.mod`.
   - `sindri.go.config` — `gofmt` on save, `staticcheck` / `golangci-lint` integration.
 - **Multi-root workspace validation** — Go workspaces (`go.work`) often span multiple modules. Validates that `sindri.toml` + the LSP host handle multi-root correctly.
+
+🚦 **End-of-phase review** — hard gate (full review + remediation roadmap) before the next phase. Protocol: [end-of-phase-review.md](../process/end-of-phase-review.md).
 
 ---
 
@@ -336,6 +356,8 @@ The CLI (`sindri open`, `sindri ext`) built in Phase 8 ships bundled into every 
 - **Path seam** — Windows ↔ WSL path translation (`/mnt/c/...` ↔ `C:\...`). Already reserved in the trait; implementation lands here.
 - **UX** — environment picker in status bar, indicator of active environment in title bar.
 
+🚦 **End-of-phase review** — hard gate (full review + remediation roadmap) before the next phase. Protocol: [end-of-phase-review.md](../process/end-of-phase-review.md).
+
 ---
 
 ## Phase 11 — Python language support
@@ -350,6 +372,8 @@ The CLI (`sindri open`, `sindri ext`) built in Phase 8 ships bundled into every 
   - `sindri.python.config` — `ruff` (format + lint), `mypy` / `pyright` type error integration, interpreter selector.
 - **Virtual environment detection** — `venv/`, `.venv/`, `conda`, `poetry.lock`, `uv.lock`. Auto-select interpreter per project. Exposed via `sindri.toml` `[toolchains.python]`.
 - **REPL integration** — `python -i` / `ipython` in a dedicated terminal tab, send-selection-to-REPL keybind.
+
+🚦 **End-of-phase review** — hard gate (full review + remediation roadmap) before the next phase. Protocol: [end-of-phase-review.md](../process/end-of-phase-review.md).
 
 ---
 
@@ -366,6 +390,8 @@ The CLI (`sindri open`, `sindri ext`) built in Phase 8 ships bundled into every 
   - `sindri.java.config` — `google-java-format` / `palantir-java-format` on save, Checkstyle integration.
 - **JDK management** — detect installed JDKs, allow pinning per-project in `sindri.toml`. Surfaces a "Install JDK" prompt when missing.
 - **Multi-module project validation** — Maven multi-module and Gradle multi-project are common in Java. Validates that the project model and LSP host handle cross-module go-to-def correctly.
+
+🚦 **End-of-phase review** — hard gate (full review + remediation roadmap) before the next phase. Protocol: [end-of-phase-review.md](../process/end-of-phase-review.md).
 
 ---
 
@@ -384,6 +410,8 @@ The CLI (`sindri open`, `sindri ext`) built in Phase 8 ships bundled into every 
   - `sindri.web.config` — Prettier / ESLint / Biome on save, TSConfig awareness, `tsconfig.json` path alias resolution surfaced in LSP.
 - **Framework-specific niceties** — React JSX prop completions, Svelte component completion (via vtsls plugins). Vue deferred (separate grammar + LSP).
 - **Browser debug launch** — `js-debug` + Chrome DevTools Protocol for browser-side debugging, not just Node.
+
+🚦 **End-of-phase review** — hard gate (full review + remediation roadmap) before the next phase. Protocol: [end-of-phase-review.md](../process/end-of-phase-review.md).
 
 ---
 
@@ -426,6 +454,8 @@ Once the template is proven and the marketplace is open, additional language pac
 | **Zig** | zls | lldb-dap | tree-sitter-zig | zig build, zig test |
 | **Lua** | lua-language-server | local-lua-debugger | tree-sitter-lua | busted |
 | **Vue** | Volar / vue-language-server | js-debug | tree-sitter-vue | vitest |
+
+🚦 **End-of-phase review** — hard gate (full review + remediation roadmap) before the next phase. Protocol: [end-of-phase-review.md](../process/end-of-phase-review.md).
 
 ---
 

@@ -3,7 +3,8 @@
 import { createSignal, createResource, For, Show, createMemo, ErrorBoundary, createEffect, onCleanup } from "solid-js";
 import type { ExtensionCategory, ExtensionManifest, RegistryIndexEntry } from "../../extensions/manifest";
 import { getRegistryClient, rawFileUrl, resolveIconThemeDef, resolveUiIconPackDef } from "../../extensions/registry-client";
-import { activateExtensionFromSinxt } from "../../extensions/activation";
+import { activateExtensionFromSinxt, activateExtensionWithManifest } from "../../extensions/activation";
+import { checkUpdatesOnly } from "../../extensions/update-checker";
 import { registerTheme, unregisterTheme, registerIconTheme, unregisterIconTheme, registerUiIconPack, unregisterUiIconPack, getThemeDef, setUiTheme, setIconTheme, setUiPack } from "../../theme/registry";
 import type { ThemeDef } from "../../theme/tokens";
 import {
@@ -160,7 +161,9 @@ async function fetchAllEntries(): Promise<MarketplaceEntry[]> {
     }
   }
   _allEntries = merged;
-  return merged;
+  // Templates are hidden (not directly installable); all other entries including pack members
+  // appear in the browse list so they can be individually discovered and installed.
+  return merged.filter(e => e.item.manifest.type !== "template");
 }
 
 // ---------------------------------------------------------------------------
@@ -204,14 +207,31 @@ async function doInstall(entry: MarketplaceEntry): Promise<boolean> {
 
   for (const iconTheme of contributes.iconThemes ?? []) {
     if (!repoUrl) continue;
-    const url = rawFileUrl(repoUrl, item.folderPath, iconTheme.path);
-    if (!url) continue;
+
+    // ADR-0032: if this extension inherits from a base icon theme, fetch the
+    // base's icons.json and overlay the child's id/name/cssVars.
+    let iconJsonUrl = rawFileUrl(repoUrl, item.folderPath, iconTheme.path);
+    let cssVars: Record<string, string> | undefined;
+    if (item.manifest.extends) {
+      const baseEntry = _allEntries.find((e) => e.item.manifest.id === item.manifest.extends);
+      if (baseEntry?.repoUrl) {
+        const basePath = baseEntry.item.manifest.contributes?.iconThemes?.[0]?.path ?? "icons.json";
+        iconJsonUrl = rawFileUrl(baseEntry.repoUrl, baseEntry.item.folderPath, basePath) ?? iconJsonUrl;
+      }
+      if (item.manifest.variables) {
+        cssVars = Object.fromEntries(
+          Object.entries(item.manifest.variables).map(([k, v]) => [`--${k}`, v]),
+        );
+      }
+    }
+
+    if (!iconJsonUrl) continue;
     try {
-      const res = await fetch(url, { cache: "no-cache" });
+      const res = await fetch(iconJsonUrl, { cache: "no-cache" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const raw = await res.json() as Record<string, unknown>;
-      const def = await resolveIconThemeDef(raw, url);
-      registerIconTheme(def);
+      const def = await resolveIconThemeDef(raw, iconJsonUrl);
+      registerIconTheme({ ...def, id: iconTheme.id, name: iconTheme.name, ...(cssVars ? { cssVars } : {}) });
     } catch (err) {
       console.error("[Marketplace] failed to install icon theme", iconTheme.id, err);
       return false;
@@ -298,6 +318,21 @@ export async function rehydrateInstalledExtensions(): Promise<void> {
 
   // Re-install each stored installed extension (skip bundled — already registered)
   for (const record of installedExtensions()) {
+    // Dev/source extension: re-spawn watch + activate from last-built dev dir.
+    if (record.repoUrl === "dev" && record.folderPath) {
+      try {
+        const { invoke } = await import("@tauri-apps/api/core");
+        const devDir = await invoke<string>("ext_restart_watch", {
+          extId: record.id,
+          folderPath: record.folderPath,
+        });
+        await activateExtensionWithManifest(`${devDir}/extension.js`);
+      } catch (e) {
+        console.warn(`[Marketplace] dev extension ${record.id} needs re-load from source:`, e);
+      }
+      continue;
+    }
+
     // Code extensions installed via marketplace: reactivate from the local .sinxt.
     if (record.sinxtPath) {
       await activateExtensionFromSinxt(record.sinxtPath, record.manifest).catch((e) => {
@@ -336,13 +371,28 @@ async function reinstallEntry(entry: MarketplaceEntry): Promise<void> {
   }
 
   for (const iconTheme of contributes.iconThemes ?? []) {
-    const url = rawFileUrl(repoUrl, item.folderPath, iconTheme.path);
-    if (!url) continue;
+    // ADR-0032: redirect to base's icons.json when this extension uses `extends`
+    let iconJsonUrl = rawFileUrl(repoUrl, item.folderPath, iconTheme.path);
+    let cssVars: Record<string, string> | undefined;
+    if (item.manifest.extends) {
+      const baseEntry = _allEntries.find((e) => e.item.manifest.id === item.manifest.extends);
+      if (baseEntry?.repoUrl) {
+        const basePath = baseEntry.item.manifest.contributes?.iconThemes?.[0]?.path ?? "icons.json";
+        iconJsonUrl = rawFileUrl(baseEntry.repoUrl, baseEntry.item.folderPath, basePath) ?? iconJsonUrl;
+      }
+      if (item.manifest.variables) {
+        cssVars = Object.fromEntries(
+          Object.entries(item.manifest.variables).map(([k, v]) => [`--${k}`, v]),
+        );
+      }
+    }
+    if (!iconJsonUrl) continue;
     try {
-      const res = await fetch(url, { cache: "no-cache" });
+      const res = await fetch(iconJsonUrl, { cache: "no-cache" });
       if (res.ok) {
         const raw = await res.json() as Record<string, unknown>;
-        registerIconTheme(await resolveIconThemeDef(raw, url));
+        const def = await resolveIconThemeDef(raw, iconJsonUrl);
+        registerIconTheme({ ...def, id: iconTheme.id, name: iconTheme.name, ...(cssVars ? { cssVars } : {}) });
       }
     } catch { /* skip */ }
   }
@@ -678,6 +728,7 @@ export function MarketplaceSection() {
   const [search, setSearch] = createSignal("");
   const [showInstalled, setShowInstalled] = createSignal(false);
   const [installing, setInstalling] = createSignal<string | null>(null);
+  const [installFailed, setInstallFailed] = createSignal<string | null>(null);
   const [entries] = createResource(refreshKey, fetchAllEntries);
 
   // Clear live preview when leaving the marketplace
@@ -686,9 +737,8 @@ export function MarketplaceSection() {
   createEffect(() => {
     const list = filtered();
     if (list.length === 0) { setSelected(null); return; }
-    const cur = selected();
-    const stillVisible = cur && list.some((e) => e.item.manifest.id === cur.item.manifest.id);
-    if (!stillVisible) setSelected(list[0]);
+    // Only auto-select when nothing is selected; preserve explicit navigation.
+    if (!selected()) setSelected(list[0]);
   });
 
   const searched = createMemo(() => {
@@ -746,8 +796,10 @@ export function MarketplaceSection() {
 
   async function handleInstall(e: MarketplaceEntry) {
     setInstalling(e.item.manifest.id);
-    await doInstall(e);
+    setInstallFailed(null);
+    const ok = await doInstall(e);
     setInstalling(null);
+    if (!ok) setInstallFailed(e.item.manifest.id);
   }
 
   function navigateTo(me: MarketplaceEntry) {
@@ -784,7 +836,7 @@ export function MarketplaceSection() {
             <span>Categories</span>
             <button
               class="mkt-refresh"
-              onClick={() => { setRefreshKey((k) => k + 1); setSelected(null); }}
+              onClick={() => { setRefreshKey((k) => k + 1); setSelected(null); void checkUpdatesOnly(); }}
               disabled={entries.loading}
               title="Refresh"
             >↻</button>
@@ -888,6 +940,7 @@ export function MarketplaceSection() {
                     <ExtensionDetail
                       entry={me}
                       installing={installing() === me.item.manifest.id}
+                      installFailed={installFailed() === me.item.manifest.id}
                       onInstall={() => handleInstall(me)}
                       onUninstall={() => doUninstall(me)}
                       onNavigate={navigateTo}
@@ -911,6 +964,7 @@ export function MarketplaceSection() {
 function ExtensionDetail(props: {
   entry: MarketplaceEntry;
   installing: boolean;
+  installFailed: boolean;
   onInstall: () => void;
   onUninstall: () => void;
   onNavigate: (entry: MarketplaceEntry) => void;
@@ -1024,14 +1078,14 @@ function ExtensionDetail(props: {
   // Packs/collections that declare this extension as a member
   const parentEntries = () => _allEntries.filter(e => e.item.manifest.extensionPack?.includes(manifest.id));
 
-  const isThemePack = () => isPack && (
-    manifest.packKind === "theme" ||
-    packResolved().some(({ entry }) => entry && (
-      (entry.item.manifest.contributes?.themes?.length ?? 0) > 0 ||
-      (entry.item.manifest.contributes?.iconThemes?.length ?? 0) > 0 ||
-      (entry.item.manifest.contributes?.uiIconPacks?.length ?? 0) > 0
-    ))
-  );
+  // "Apply theme" only if direct members actually carry theme contributes.
+  // Collections' direct members are sub-packs with contributes:{} → some() = false.
+  // This avoids depending on manifest.type (absent from old GitHub manifests) or packKind.
+  const isThemePack = () => isPack && packResolved().some(({ entry }) => entry && (
+    (entry.item.manifest.contributes?.themes?.length ?? 0) > 0 ||
+    (entry.item.manifest.contributes?.iconThemes?.length ?? 0) > 0 ||
+    (entry.item.manifest.contributes?.uiIconPacks?.length ?? 0) > 0
+  ));
 
   function applyThemePack() {
     for (const { entry } of packResolved()) {
@@ -1118,6 +1172,11 @@ function ExtensionDetail(props: {
           <div class="mkt-detail-host-note">
             Remote install coming soon — load a local build via{" "}
             <strong>Extensions &gt; Active Extension</strong>.
+          </div>
+        </Show>
+        <Show when={props.installFailed}>
+          <div class="mkt-install-error">
+            Install failed — the extension bundle could not be downloaded. Check the browser console for details.
           </div>
         </Show>
         <Show when={manifest.bugs?.url || manifest.bugs?.email}>

@@ -102,6 +102,64 @@ button:active {
   background: rgba(255, 255, 255, 0.08);
 }
 
+/* ── Theme picker (titlebar) ───────────────────────────────────── */
+
+.theme-picker {
+  position: relative;
+}
+
+.theme-picker-trigger {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+}
+
+.theme-picker-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 1000;
+  background: var(--bg-chrome);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+  min-width: 180px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.theme-picker-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-radius: 5px;
+  padding: 5px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+  background: transparent;
+  color: var(--text-dim);
+}
+
+.theme-picker-item:hover,
+.theme-picker-item.is-active {
+  background: var(--bg-hover);
+  color: var(--text);
+  border-color: transparent;
+}
+
+.theme-picker-item.is-active {
+  color: var(--accent);
+}
+
 /* ── Status bar ────────────────────────────────────────────────── */
 
 .statusbar {
@@ -1716,6 +1774,12 @@ button:active {
   padding: 0 2px;
 }
 
+.settings-success-note {
+  font-size: 11px;
+  color: var(--accent);
+  padding: 0 2px;
+}
+
 /* Editor theme checkbox row */
 
 .settings-editor-theme {
@@ -1859,6 +1923,162 @@ button:active {
   padding: 4px 0;
 }
 
+.ext-active-row--stack {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.ext-active-row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ext-active-badge--debug {
+  background: color-mix(in srgb, #4ade80 18%, transparent);
+  color: #4ade80;
+}
+
+.ext-debug-url-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  padding-left: 2px;
+}
+
+.ext-debug-url {
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
+  color: var(--text-dim);
+  background: color-mix(in srgb, var(--bg-1) 60%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 2px 6px;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ext-debug-copy {
+  font-size: 10px;
+  padding: 2px 8px;
+  flex-shrink: 0;
+}
+
+.ext-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+
+.ext-tab {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 14px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s;
+  margin-bottom: -1px;
+}
+
+.ext-tab:hover {
+  color: var(--text-normal);
+}
+
+.ext-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.ext-debug-help {
+  font-size: 11px;
+  color: var(--text-dim);
+  background: color-mix(in srgb, var(--bg-1) 50%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ext-debug-help-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-normal);
+  margin-bottom: -6px;
+}
+
+.ext-debug-help-option {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ext-debug-help-option strong {
+  color: var(--text-normal);
+  font-size: 11px;
+}
+
+.ext-debug-steps {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ext-debug-steps li {
+  font-size: 11px;
+}
+
+.ext-debug-help-note {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.ext-debug-launch-json {
+  margin: 0;
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  background: color-mix(in srgb, var(--bg-0) 70%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  white-space: pre;
+  overflow-x: auto;
+  color: var(--text-normal);
+}
+
+.ext-debug-help code {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  background: color-mix(in srgb, var(--bg-0) 60%, transparent);
+  border-radius: 2px;
+  padding: 1px 4px;
+}
+
+.ext-variant-select {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: var(--bg-1);
+  color: var(--accent);
+  cursor: pointer;
+  max-width: 220px;
+}
+
 .ext-active-name {
   font-size: 12px;
   color: var(--text-normal);
@@ -1872,6 +2092,12 @@ button:active {
   background: color-mix(in srgb, var(--accent) 18%, transparent);
   color: var(--accent);
   letter-spacing: 0.03em;
+}
+
+.ext-active-uninstall {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 2px 8px;
 }
 
 .ext-active-actions {
@@ -2384,6 +2610,16 @@ button:active {
   padding: 7px 12px;
   margin-bottom: 14px;
   font-style: italic;
+}
+
+.mkt-install-error {
+  font-size: 11px;
+  color: #e06c75;
+  background: rgba(224, 108, 117, 0.08);
+  border: 1px solid rgba(224, 108, 117, 0.3);
+  border-radius: 5px;
+  padding: 7px 12px;
+  margin-bottom: 14px;
 }
 
 .mkt-detail-desc {

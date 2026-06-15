@@ -25,7 +25,7 @@ Format: lightweight [MADR](https://adr.github.io/madr/).
 | [0017](0017-browser-pwa-target.md) | Browser / PWA target — distribution scope & the core-transport seam | Accepted |
 | [0018](0018-split-panes-docking-floating.md) | Editor split panes, advanced sidebar docking, and floating windows | Accepted |
 | [0019](0019-theme-and-icon-system.md) | Theme & icon system (theme-as-data, dual UI/editor themes, extension-contributed) | Accepted |
-| [0020](0020-extension-distribution-and-marketplace.md) | Extension distribution, manifest & marketplace (git-repo registries) | Accepted |
+| [0020](0020-extension-distribution-and-marketplace.md) | Extension distribution, manifest & marketplace (git-repo registries) | Accepted · §3 index superseded by [0038](0038-manifest-type-and-id-resolution.md) |
 | [0021](0021-settings-surface.md) | Settings surface — core modal overlay over merged plugin config | Accepted |
 | [0022](0022-sidebar-panels-as-extensions.md) | Sidebar panels as extensions — all panels except Explorer/Terminal/Output are extension-contributed | Proposed |
 | [0023](0023-extension-configuration-contract.md) | Extension configuration contract — `contributes.configuration`, settings storage & generic renderer | Accepted |
@@ -37,4 +37,10 @@ Format: lightweight [MADR](https://adr.github.io/madr/).
 | [0029](0029-editor-overlay-api.md) | Editor overlay & widget API — surface C (extends ADR-0024) | Reserved — seam only |
 | [0030](0030-extension-output-logging.md) | Extension output & logging — `sindri.output` API, console auto-capture, Extension Logs panel | Accepted |
 | [0031](0031-resource-url-scheme.md) | Resource URL scheme — `sindri-resource://` custom Tauri protocol for extension bundle files | Accepted |
-| [0032](0032-extension-templates-inheritance.md) | Extension templates & inheritance — `extends` + `variables`, CSS-custom-property SVG templates | Accepted |
+| [0032](0032-extension-templates-inheritance.md) | Extension templates & inheritance — `extends` + `variables`, CSS-custom-property SVG templates | Accepted · §6 superseded by [0038](0038-manifest-type-and-id-resolution.md) |
+| [0033](0033-sindri-cli.md) | The `sindri` CLI — Rust binary, `src-tauri` workspace, `sindri-core`, and the `ext` release engine | Accepted |
+| [0034](0034-sindri-editor-namespace.md) | `sindri.editor` namespace — document/selection/visible-range proxy + events; hosts ADR-0024 decorations; writes deferred | Accepted |
+| [0035](0035-wasm-module-execution.md) | WASM module execution — `sindri.wasm.load()` op + `contributes.wasm` | Accepted |
+| [0036](0036-native-binary-bundling.md) | Native binary bundling — `contributes.binaries` + brokered exec resolution | Accepted |
+| [0037](0037-extension-inspector-debugging.md) | Extension debugging — V8 Inspector / CDP gateway (on-demand, dev-gated, loopback) | Accepted |
+| [0038](0038-manifest-type-and-id-resolution.md) | Manifest `type` taxonomy & id-based registry resolution (supersedes 0020 §3, 0032 §6) | Accepted |

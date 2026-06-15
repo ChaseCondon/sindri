@@ -1,0 +1,22 @@
+[package]
+name = "sindri-cli"
+version = "0.0.0"
+edition = "2021"
+description = "The `sindri` CLI — launcher + extension release engine (ADR-0033). Stays lean: no Tauri, no V8."
+authors = ["Sindri contributors"]
+license = "MIT OR Apache-2.0"
+
+# The CLI owns the `sindri` binary name; the Tauri app binary is `sindri-app`.
+[[bin]]
+name = "sindri"
+path = "src/main.rs"
+
+[dependencies]
+sindri-core = { path = "../sindri-core" }
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+
+[dev-dependencies]
+tempfile = "3"

@@ -249,6 +249,20 @@
             }
           }
         },
+        "wasm": {
+          "type": "array",
+          "description": "WASM module paths bundled with this extension (ADR-0035). Paths are relative to the extension root and must match zip entry names in the .sinxt archive. The runtime extracts these files at sinxt-activation time so op_wasm_load can read them by path. Extensions load them via `sindri.wasm.load(relPath)` where relPath is relative to the bundle directory (dist/).",
+          "items": { "type": "string" }
+        },
+        "binaries": {
+          "type": "object",
+          "description": "Native binaries bundled with this extension (ADR-0036). Keys are logical binary names used in sindri.env.exec(); values are paths relative to the extension root (matching zip entry names in .sinxt). The runtime extracts these files and sets the executable bit at sinxt-activation time. For dev/source extensions the binary is read directly from the filesystem.",
+          "additionalProperties": { "type": "string" }
+        },
+        "l10n": {
+          "type": "string",
+          "description": "Relative path to the l10n directory containing locale bundles (e.g. 'l10n'). Each bundle file is named `bundle.l10n.{locale}.json` (e.g. `bundle.l10n.en-US.json`). The bundle is a flat `{ \"key\": \"translated string\" }` JSON object consumed by `sindri.l10n.t(key, args?)`."
+        },
         "configuration": {
           "type": "object",
           "description": "Settings schema contributed to the Settings panel (ADR-0021). Keys are setting identifiers.",
@@ -272,6 +286,16 @@
     "extensionPack": {
       "type": "array",
       "description": "Extension IDs bundled by this Extension Pack. Installing the pack installs each listed extension individually.",
+      "items": { "type": "string", "pattern": "^[a-z0-9-]+\\.[a-z0-9-]+$" }
+    },
+    "type": {
+      "type": "string",
+      "description": "Authoritative manifest kind (ADR-0038). Defaults to 'extension' if absent.",
+      "enum": ["extension", "pack", "collection", "template"]
+    },
+    "provides": {
+      "type": "array",
+      "description": "IDs of template entries hosted inside this pack or collection (ADR-0038). Templates are resolvable by id for `extends` but are never shown or installable in the marketplace.",
       "items": { "type": "string", "pattern": "^[a-z0-9-]+\\.[a-z0-9-]+$" }
     },
     "tags": {

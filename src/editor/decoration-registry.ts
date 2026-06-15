@@ -1,9 +1,9 @@
-// Editor decoration registry — ADR-0024 Model A (static bundled features)
+// Editor decoration registry — ADR-0024 Model A (static bundled features) + Model B (extension providers)
 // Owns one Compartment per feature; builds Extensions from configStore values.
 // No import from groups.ts — maintains the buffers→registry cycle-free invariant.
 // applyChangedDecorations() is called from features.ts (which owns the views lookup).
-import { Compartment, Prec, type Extension } from "@codemirror/state";
-import type { EditorView } from "@codemirror/view";
+import { Compartment, Prec, StateEffect, StateField, RangeSet, type Extension } from "@codemirror/state";
+import { Decoration, type DecorationSet, EditorView } from "@codemirror/view";
 import { makeRainbowBrackets, DARK_COLORS, LIGHT_COLORS } from "./rainbow-brackets";
 import { makeIndentGuides, type IndentGuideStyle } from "./indent-guides";
 import * as configStore from "../workbench/settings/configStore";
@@ -48,6 +48,42 @@ const DECORATION_FEATURES: DecorationFeature[] = [
   },
 ];
 
+// ── ADR-0024 Model B — extension-provided decorations ────────────────────────
+
+/** Effect dispatched to a view to update (or clear) one extension provider's decoration set. */
+export const setExtDecorations = StateEffect.define<{ providerId: string; decos: DecorationSet }>();
+
+const _extDecorationsField = StateField.define<Map<string, DecorationSet>>({
+  create: () => new Map(),
+  update(prev, tr) {
+    if (!tr.effects.some((e) => e.is(setExtDecorations))) return prev;
+    const next = new Map(prev);
+    for (const effect of tr.effects) {
+      if (effect.is(setExtDecorations)) {
+        next.set(effect.value.providerId, effect.value.decos);
+      }
+    }
+    return next;
+  },
+  provide: (f) =>
+    EditorView.decorations.from(f, (map) => {
+      const sets = [...map.values()];
+      if (sets.length === 0) return Decoration.none;
+      if (sets.length === 1) return sets[0];
+      return RangeSet.join(sets);
+    }),
+});
+
+/**
+ * Dispatch updated decorations for one extension provider to all given views.
+ * Pass `Decoration.none` to clear a provider's decorations.
+ */
+export function updateExtDecorations(views: EditorView[], providerId: string, decos: DecorationSet): void {
+  for (const view of views) {
+    view.dispatch({ effects: [setExtDecorations.of({ providerId, decos })] });
+  }
+}
+
 /**
  * Returns seeded compartment extensions for use in buildEditorState.
  * Each compartment is pre-filled with the current config value.
@@ -59,7 +95,7 @@ export function buildDecorationCompartmentExts(): Extension[] {
     console.log(`[decoration-registry] ${f.id} build → enabled=${Array.isArray(ext) && ext.length === 0 ? false : true}`);
     return f.compartment.of(ext);
   });
-  return exts;
+  return [...exts, _extDecorationsField];
 }
 
 /**

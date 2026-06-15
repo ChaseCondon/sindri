@@ -146,7 +146,9 @@ export interface ExtensionManifest {
   permissions: string[];  // ADR-0015 §6 — gates host injection
   engines: { sindri: string }; // compat range — refuse-install on mismatch
   contributes: ExtensionContributes;
+  type?: "extension" | "pack" | "collection" | "template"; // ADR-0038: authoritative kind
   extensionPack?: string[]; // for "Extension Pack" category — IDs of extensions to install together
+  provides?: string[];    // ADR-0038: template IDs hosted inside this pack/collection (never installed with the pack)
   packKind?: "theme" | "language" | "general"; // optional sub-label for extension packs
   extends?: string;       // ADR-0032: base icon theme to inherit from (publisher.name format)
   variables?: Record<string, string>; // ADR-0032: CSS custom property overrides for inherited icon theme
@@ -161,19 +163,21 @@ export interface ExtensionManifest {
   available?: boolean;    // false = not yet installable (stub/WIP); absent means true
 }
 
-// Lean wire format for index.json (ADR-0020 §3).
-// Each list is a flat array of folder paths — no IDs or memberPaths.
-// The registry client fetches manifest.json from each path; packs/collections
-// are walked recursively by deriving member paths from manifest extensionPack fields.
+// Lean wire format for index.json (ADR-0038 §2).
+// Current format: flat entries array with id, path, and type per entry.
+// Legacy bucket formats (extensions/packs/collections, extensionFolders) are
+// still accepted by enrichLeanIndex for backward compatibility.
 export interface RegistryLeanIndex {
   name?: string;
   description?: string;
   homepage?: string;
-  // Current format — flat folder-path strings per category:
-  extensions?:  string[];   // paths to standalone leaf extensions
-  packs?:       string[];   // paths to extension pack roots
-  collections?: string[];   // paths to collection pack roots
-  // Legacy flat format (backward compat — still accepted by enrichLeanIndex):
+  // ADR-0038 current format — flat entries with explicit id+path+type:
+  entries?: Array<{ id: string; path: string; type: string }>;
+  // Legacy bucket format (backward compat):
+  extensions?:  string[];
+  packs?:       string[];
+  collections?: string[];
+  // Oldest legacy flat format (backward compat):
   extensionFolders?: string[];
 }
 
