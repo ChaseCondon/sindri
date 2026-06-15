@@ -237,7 +237,14 @@ async fn op_wasm_load(#[string] path: String) -> Result<Vec<u8>, JsErrorBox> {
     tokio::fs::read(&path).await.map_err(|e| JsErrorBox::generic(e.to_string()))
 }
 
-extension!(sindri_ext, ops = [op_fs_read, op_fs_write, op_fs_exists, op_fs_glob, op_event_emit, op_env_exec, op_ui_show_quick_pick, op_editor_request, op_wasm_load]);
+/// Sleep for `ms` milliseconds. Used by the JS bootstrap to implement setTimeout/setInterval.
+#[op2]
+async fn op_sleep_ms(#[smi] ms: u32) -> Result<(), JsErrorBox> {
+    tokio::time::sleep(std::time::Duration::from_millis(u64::from(ms))).await;
+    Ok(())
+}
+
+extension!(sindri_ext, ops = [op_fs_read, op_fs_write, op_fs_exists, op_fs_glob, op_event_emit, op_env_exec, op_ui_show_quick_pick, op_editor_request, op_wasm_load, op_sleep_ms]);
 
 /// Sender half of the extension-event channel.
 /// Extensions call `sindri.events.emit(id, payload)` → `op_event_emit` → this sender.
@@ -737,6 +744,66 @@ globalThis.sindri = {
         get locale() { return globalThis.__sindri_locale ?? "en-US"; },
     }
 };
+
+// ── Web API polyfills ─────────────────────────────────────────────────────────
+// These are not included in deno_core's minimal runtime; extensions expect them.
+
+if (typeof TextEncoder === 'undefined') {
+    globalThis.TextEncoder = class TextEncoder {
+        constructor() { this.encoding = 'utf-8'; }
+        encode(s) { return Deno.core.encode(String(s ?? '')); }
+        encodeInto(s, u8) {
+            const b = Deno.core.encode(String(s ?? ''));
+            u8.set(b.subarray(0, u8.length));
+            return { read: Math.min(s.length, u8.length), written: Math.min(b.length, u8.length) };
+        }
+    };
+}
+
+if (typeof TextDecoder === 'undefined') {
+    globalThis.TextDecoder = class TextDecoder {
+        constructor(label) { this.encoding = label || 'utf-8'; }
+        decode(b) { return Deno.core.decode(b instanceof Uint8Array ? b : new Uint8Array(b)); }
+    };
+}
+
+// Timer polyfills backed by op_sleep_ms (tokio::time::sleep).
+// Each handle is an object with an `active` flag; clearTimeout/clearInterval deactivates it.
+{
+    let __timerSeq = 0;
+    const __timers = new Map();
+    globalThis.setTimeout = function(fn, ms) {
+        const id = ++__timerSeq;
+        const h = { active: true };
+        __timers.set(id, h);
+        (async function() {
+            await Deno.core.ops.op_sleep_ms(ms >>> 0);
+            if (h.active) { __timers.delete(id); fn(); }
+        })();
+        return id;
+    };
+    globalThis.clearTimeout = function(id) {
+        const h = __timers.get(id);
+        if (h) { h.active = false; __timers.delete(id); }
+    };
+    globalThis.setInterval = function(fn, ms) {
+        const id = ++__timerSeq;
+        const h = { active: true };
+        __timers.set(id, h);
+        (async function loop() {
+            while (h.active) {
+                await Deno.core.ops.op_sleep_ms(ms >>> 0);
+                if (h.active) fn();
+            }
+            __timers.delete(id);
+        })();
+        return id;
+    };
+    globalThis.clearInterval = function(id) {
+        const h = __timers.get(id);
+        if (h) { h.active = false; __timers.delete(id); }
+    };
+}
 "#;
 
 // ── source map translation ────────────────────────────────────────────────────

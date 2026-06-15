@@ -799,6 +799,14 @@ async fn ext_stop_debugger(host: State<'_, ExtHost>, ext_id: String) -> Result<(
     Ok(())
 }
 
+/// Deactivate (unload) a running extension by id. Drops the V8 isolate thread.
+/// Called by the frontend when uninstalling an extension.
+#[tauri::command]
+async fn ext_deactivate(host: State<'_, ExtHost>, ext_id: String) -> Result<(), String> {
+    host.deactivate(&ext_id);
+    Ok(())
+}
+
 #[tauri::command]
 #[cfg(debug_assertions)]
 async fn toggle_devtools(window: tauri::WebviewWindow) {
@@ -875,7 +883,7 @@ fn build_app(
             ext_editor_read_result, ext_editor_provide_decorations,
             file_mtime, ext_dev_dir,
             ext_load_from_source, ext_restart_watch, ext_stop_dev_watch,
-            ext_attach_debugger, ext_list_loaded_extensions, ext_stop_debugger,
+            ext_attach_debugger, ext_list_loaded_extensions, ext_stop_debugger, ext_deactivate,
             #[cfg(debug_assertions)]
             toggle_devtools,
         ])

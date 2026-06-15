@@ -109,6 +109,15 @@ impl ExtHost {
         Some(format!("ws://127.0.0.1:9229/ws/{ext_id}"))
     }
 
+    /// Deactivate and unload an extension by id. Drops the runtime (which closes the
+    /// mpsc sender and causes the JS thread to exit). Also removes the debug target.
+    /// Returns false if the extension was not loaded.
+    pub fn deactivate(&self, ext_id: &str) -> bool {
+        let removed = self.runtimes.lock().unwrap().remove(ext_id).is_some();
+        self.debug_targets.lock().unwrap().remove(ext_id);
+        removed
+    }
+
     /// Send `StopDebug` to the JS thread for `ext_id`, exiting debug mode and closing
     /// all active inspector sessions. Returns `false` if the extension is not loaded.
     pub fn stop_debugger(&self, ext_id: &str) -> bool {

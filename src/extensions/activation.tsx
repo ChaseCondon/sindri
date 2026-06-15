@@ -206,12 +206,14 @@ export async function activateExtensionFromSinxt(
 
   for (const tv of manifest.contributes?.treeViews ?? []) {
     preRegisteredTreeViews.add(tv.id);
-    // Icons inside .sinxt are served via sindri-resource://{extId}/path — resolve after activation.
-    registerTreeViewPanel(tv.id, tv.title, tv.icon ?? ICON_TREE_VIEW, tv.defaultDock ?? "left-top");
+    // Only use the icon if it's inline SVG; path-based icons can't be resolved pre-activation.
+    const tvIcon = tv.icon?.trimStart().startsWith("<") ? tv.icon : ICON_TREE_VIEW;
+    registerTreeViewPanel(tv.id, tv.title, tvIcon, tv.defaultDock ?? "left-top");
   }
   for (const wp of manifest.contributes?.webviewPanels ?? []) {
     preRegisteredWebviewPanels.add(wp.id);
-    registerWebviewPanel(wp.id, wp.title, wp.icon ?? ICON_TREE_VIEW, wp.defaultDock ?? "right-top");
+    const wpIcon = wp.icon?.trimStart().startsWith("<") ? wp.icon : ICON_TREE_VIEW;
+    registerWebviewPanel(wp.id, wp.title, wpIcon, wp.defaultDock ?? "right-top");
   }
 
   await activateSinxtExtension(sinxtPath, extId);

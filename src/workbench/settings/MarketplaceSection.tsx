@@ -9,8 +9,11 @@ import { registerTheme, unregisterTheme, registerIconTheme, unregisterIconTheme,
 import type { ThemeDef } from "../../theme/tokens";
 import {
   registryRepos, installedIds, installedExtensions, installExtension, uninstallExtension,
+  setExtensionEnabled, isExtensionEnabled,
   liveThemePreview, setPreviewThemeDef,
 } from "./store";
+import { invoke } from "@tauri-apps/api/core";
+import { isTauri } from "../../lib/tauri";
 // No explicit showExtensionErrors import — replaced by per-repo developerMode
 import bundledExtensions from "../../../core-extensions/bundled-extensions.json";
 
@@ -281,6 +284,7 @@ function doUninstall(entry: MarketplaceEntry): void {
       if (memberEntry) doUninstall(memberEntry);
     }
     uninstallExtension(id);
+    if (isTauri()) invoke("ext_deactivate", { extId: id }).catch(() => {});
     return;
   }
 
@@ -288,6 +292,7 @@ function doUninstall(entry: MarketplaceEntry): void {
   for (const iconTheme of contributes?.iconThemes ?? []) unregisterIconTheme(iconTheme.id);
   for (const uiPack of contributes?.uiIconPacks ?? []) unregisterUiIconPack(uiPack.id);
   uninstallExtension(id);
+  if (isTauri()) invoke("ext_deactivate", { extId: id }).catch(() => {});
 }
 
 // ---------------------------------------------------------------------------
@@ -318,6 +323,7 @@ export async function rehydrateInstalledExtensions(): Promise<void> {
 
   // Re-install each stored installed extension (skip bundled — already registered)
   for (const record of installedExtensions()) {
+    if (record.enabled === false) continue; // user-disabled; skip activation
     // Dev/source extension: re-spawn watch + activate from last-built dev dir.
     if (record.repoUrl === "dev" && record.folderPath) {
       try {
@@ -828,7 +834,75 @@ export function MarketplaceSection() {
         </button>
       </div>
 
-      <div class="mkt-body">
+      {/* ── Installed extensions card grid ─────────────────────────────── */}
+      <Show when={showInstalled()}>
+        <div class="mkt-installed-grid">
+          <Show when={installedExtensions().length === 0}>
+            <div class="mkt-state">No extensions installed yet.</div>
+          </Show>
+          <For each={installedExtensions()}>
+            {(record) => {
+              const entry = () => _allEntries.find((e) => e.item.manifest.id === record.id) ?? null;
+              const updateAvail = () => {
+                const e = entry();
+                return e && e.repoUrl ? hasUpdate(e) : false;
+              };
+              const enabled = () => record.enabled !== false;
+              const category = record.manifest.categories?.[0] ?? "Other";
+
+              async function toggleEnabled(): Promise<void> {
+                if (enabled()) {
+                  setExtensionEnabled(record.id, false);
+                  if (isTauri()) await invoke("ext_deactivate", { extId: record.id }).catch(() => {});
+                } else {
+                  setExtensionEnabled(record.id, true);
+                  const sinxtPath = record.sinxtPath;
+                  if (sinxtPath && isTauri()) {
+                    await activateExtensionFromSinxt(sinxtPath, record.manifest).catch((e) => {
+                      console.warn(`[Marketplace] re-enable ${record.id}:`, e);
+                    });
+                  }
+                }
+              }
+
+              return (
+                <div class={`mkt-ext-card${enabled() ? "" : " mkt-ext-card-disabled"}`}>
+                  <div class="mkt-ext-card-icon">{CATEGORY_ICONS[category as ExtensionCategory] ?? "◈"}</div>
+                  <div class="mkt-ext-card-body">
+                    <div class="mkt-ext-card-name">
+                      {record.manifest.name}
+                      <span class="mkt-ext-card-version">v{record.manifest.version}</span>
+                    </div>
+                    <div class="mkt-ext-card-desc">{record.manifest.description}</div>
+                  </div>
+                  <div class="mkt-ext-card-actions">
+                    <label class="mkt-ext-toggle" title={enabled() ? "Disable extension" : "Enable extension"}>
+                      <input
+                        type="checkbox"
+                        checked={enabled()}
+                        onChange={() => { void toggleEnabled(); }}
+                      />
+                      <span class="mkt-ext-toggle-label">{enabled() ? "Enabled" : "Disabled"}</span>
+                    </label>
+                    <Show when={updateAvail()}>
+                      <button
+                        class="settings-btn-primary mkt-ext-btn"
+                        onClick={() => { const e = entry(); if (e) void handleInstall(e); }}
+                      >Update</button>
+                    </Show>
+                    <button
+                      class="settings-btn-secondary mkt-ext-btn"
+                      onClick={() => { const e = entry(); if (e) doUninstall(e); }}
+                    >Uninstall</button>
+                  </div>
+                </div>
+              );
+            }}
+          </For>
+        </div>
+      </Show>
+
+      <div class="mkt-body" style={showInstalled() ? "display:none" : ""}>
 
         {/* Category sidebar */}
         <aside class="mkt-sidebar">

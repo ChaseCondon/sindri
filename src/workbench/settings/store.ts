@@ -47,6 +47,8 @@ export interface InstalledRecord {
   // Which variant is running. Only meaningful when localSinxtAlt is set.
   // Defaults to "marketplace" when absent.
   activeVariant?: "marketplace" | "local";
+  // false = installed but not currently active; undefined/true = active.
+  enabled?: boolean;
 }
 
 /** Return the sinxtPath that should currently be active for a record. */
@@ -222,6 +224,18 @@ export function uninstallExtension(id: string): InstalledRecord | null {
   }
   save();
   return restored;
+}
+
+export function setExtensionEnabled(id: string, enabled: boolean): void {
+  _setInstalledExtensions(
+    _installedExtensions().map((r) => r.id === id ? { ...r, enabled } : r),
+  );
+  save();
+}
+
+export function isExtensionEnabled(id: string): boolean {
+  const rec = _installedExtensions().find((r) => r.id === id);
+  return rec ? (rec.enabled !== false) : true;
 }
 
 export function updateInstalledExtension(
