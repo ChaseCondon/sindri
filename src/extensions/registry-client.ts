@@ -249,11 +249,19 @@ function toReleaseAssetUrl(repoUrl: string, tag: string, assetName: string): str
 }
 
 // Fetch a URL and return its bytes, or null on any network/HTTP error.
+// Uses an 8-second timeout to avoid hanging on CORS-redirected GitHub Release URLs.
 async function fetchBytes(url: string): Promise<Uint8Array | null> {
   try {
-    const res = await fetch(url, { cache: "no-cache" });
-    if (!res.ok) return null;
-    return new Uint8Array(await res.arrayBuffer());
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    try {
+      const res = await fetch(url, { cache: "no-cache", signal: controller.signal });
+      clearTimeout(timer);
+      if (!res.ok) return null;
+      return new Uint8Array(await res.arrayBuffer());
+    } finally {
+      clearTimeout(timer);
+    }
   } catch {
     return null;
   }

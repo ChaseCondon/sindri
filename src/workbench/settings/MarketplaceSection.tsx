@@ -9,7 +9,7 @@ import { registerTheme, unregisterTheme, registerIconTheme, unregisterIconTheme,
 import type { ThemeDef } from "../../theme/tokens";
 import {
   registryRepos, installedIds, installedExtensions, installExtension, uninstallExtension,
-  setExtensionEnabled, isExtensionEnabled,
+  setExtensionEnabled,
   liveThemePreview, setPreviewThemeDef,
 } from "./store";
 import { invoke } from "@tauri-apps/api/core";
@@ -892,7 +892,14 @@ export function MarketplaceSection() {
                     </Show>
                     <button
                       class="settings-btn-secondary mkt-ext-btn"
-                      onClick={() => { const e = entry(); if (e) doUninstall(e); }}
+                      onClick={() => {
+                        // Deregister any contributed themes/icons using data from the stored record.
+                        for (const theme of record.manifest.contributes?.themes ?? []) unregisterTheme(theme.id);
+                        for (const iconTheme of record.manifest.contributes?.iconThemes ?? []) unregisterIconTheme(iconTheme.id);
+                        for (const uiPack of record.manifest.contributes?.uiIconPacks ?? []) unregisterUiIconPack(uiPack.id);
+                        uninstallExtension(record.id);
+                        if (isTauri()) invoke("ext_deactivate", { extId: record.id }).catch(() => {});
+                      }}
                     >Uninstall</button>
                   </div>
                 </div>

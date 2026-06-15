@@ -741,7 +741,14 @@ function ActiveExtensionSection() {
                 <span class="ext-active-badge">v{record.manifest.version ?? "?"}</span>
                 <button
                   class="settings-btn-secondary ext-active-uninstall"
-                  onClick={() => { deregisterExtDecorations(record.id); uninstallExtension(record.id); }}
+                  onClick={async () => {
+                    deregisterExtDecorations(record.id);
+                    uninstallExtension(record.id);
+                    if (isTauri()) {
+                      const { invoke } = await import("@tauri-apps/api/core");
+                      await invoke("ext_deactivate", { extId: record.id }).catch(() => {});
+                    }
+                  }}
                 >
                   Uninstall
                 </button>
@@ -798,7 +805,14 @@ function ActiveExtensionSection() {
                   </Show>
                   <button
                     class="settings-btn-secondary ext-active-uninstall"
-                    onClick={() => { deregisterExtDecorations(record.id); uninstallExtension(record.id); }}
+                    onClick={async () => {
+                      deregisterExtDecorations(record.id);
+                      uninstallExtension(record.id);
+                      if (isTauri()) {
+                        const { invoke } = await import("@tauri-apps/api/core");
+                        await invoke("ext_deactivate", { extId: record.id }).catch(() => {});
+                      }
+                    }}
                   >
                     Uninstall
                   </button>
