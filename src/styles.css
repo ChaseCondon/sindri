@@ -317,9 +317,10 @@ button:active {
 }
 
 .activity-divider {
-  width: 22px;
-  height: 1px;
-  background: var(--border);
+  width: 24px;
+  height: 1.5px;
+  background: var(--text-dim);
+  opacity: 0.45;
   margin: 5px 0;
   flex-shrink: 0;
 }
@@ -336,17 +337,15 @@ button:active {
   pointer-events: none;
 }
 
-/* Thin horizontal line showing the insertion target */
-.activity-drop-line {
-  position: absolute;
-  left: 6px;
-  right: 6px;
-  height: 2px;
-  background: var(--accent);
-  border-radius: 1px;
-  pointer-events: none;
-  z-index: 10;
-  box-shadow: 0 0 6px var(--accent);
+/* Placeholder block at the drop target — same style as tab-placeholder */
+.activity-placeholder {
+  width: 36px;
+  height: 36px;
+  border: 1.5px dashed var(--accent);
+  border-radius: 7px;
+  background: var(--accent-tint);
+  opacity: 0.75;
+  flex-shrink: 0;
 }
 
 /* ── Dock rail — vertical flex column wrapping primary + secondary zones ── */
