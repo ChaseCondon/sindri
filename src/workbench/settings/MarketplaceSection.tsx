@@ -7,7 +7,7 @@ import { activateExtensionFromSinxt, activateExtensionWithManifest } from "../..
 import { checkUpdatesOnly } from "../../extensions/update-checker";
 import { registerTheme, unregisterTheme, registerIconTheme, unregisterIconTheme, registerUiIconPack, unregisterUiIconPack, getThemeDef, setUiTheme, setIconTheme, setUiPack } from "../../theme/registry";
 import { unregisterToolWindow } from "../layout";
-import { removeExtensionLogs } from "../panels/ext-logs-store";
+import { removeExtensionLogs, registerExtension as registerLogChannel } from "../panels/ext-logs-store";
 import type { ThemeDef } from "../../theme/tokens";
 import {
   registryRepos, installedIds, installedExtensions, installExtension, uninstallExtension,
@@ -306,6 +306,20 @@ function doUninstall(entry: MarketplaceEntry): void {
 // ---------------------------------------------------------------------------
 
 export async function rehydrateInstalledExtensions(): Promise<void> {
+  // Synchronously register log channels for all enabled extensions so the
+  // Extension Logs panel shows them immediately on startup, before async
+  // activation (which may take a moment or fail silently) completes.
+  for (const record of installedExtensions()) {
+    if (record.enabled === false) continue;
+    if (record.manifest.id) {
+      registerLogChannel(
+        record.manifest.id,
+        record.manifest.name ?? record.manifest.id,
+        record.manifest.categories ?? ["Other"],
+      );
+    }
+  }
+
   const client = getRegistryClient();
   const repos = registryRepos();
 

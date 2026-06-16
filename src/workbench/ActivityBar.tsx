@@ -143,13 +143,13 @@ export function ActivityBar(props: Props) {
   const [drop, setDrop] = createSignal<DropState | null>(null);
 
   let barRef!: HTMLDivElement;
+  let dividerRef!: HTMLDivElement;
   let ghostEl: HTMLButtonElement | null = null;
   const iconRefs = new Map<string, HTMLButtonElement>();
 
   // ---------------------------------------------------------------------------
-  // Reactive render lists — include a placeholder slot at the drop position.
-  // Items have stable object refs so SolidJS For can reuse DOM nodes and CSS
-  // transitions on .icon-dragging / .activity-placeholder fire correctly.
+  // Reactive render lists. The divider is ALWAYS visible so users always have
+  // a clear split point between the two zones — no conditional mount/unmount.
   // ---------------------------------------------------------------------------
   function buildList(tools: ToolWindowDef[], targetDock: DockId): ListItem[] {
     const dId = draggingId();
@@ -158,18 +158,17 @@ export function ActivityBar(props: Props) {
     if (!dId) return tools.map((t) => iconItem(t.id));
 
     const sourceInThisZone = !!tools.find((t) => t.id === dId);
-    const inThisZone = d?.dock === targetDock || (d?.isNewZone && targetDock === bottomDock());
+    const inThisZone = d?.dock === targetDock;
 
     if (!inThisZone) {
       if (sourceInThisZone) {
-        // Source zone but not drop target — replace the dragged icon with a same-size
-        // spacer so the zone height doesn't change and the divider doesn't shift.
+        // Replace source icon with same-height spacer so the divider doesn't shift.
         return tools.map((t) => (t.id === dId ? _spacer : iconItem(t.id)));
       }
       return tools.map((t) => iconItem(t.id));
     }
 
-    // Drop target zone — insert placeholder at the computed position, no source icon.
+    // Drop target zone — insert placeholder at computed position, no source icon.
     const base = tools.filter((t) => t.id !== dId).map((t) => t.id);
     const insertIdx = d!.afterId !== null ? base.indexOf(d!.afterId) + 1 : 0;
     const result: ListItem[] = [];
@@ -181,16 +180,11 @@ export function ActivityBar(props: Props) {
   }
 
   const renderTopItems = createMemo(() => buildList(topTools(), topDock()));
-
-  const renderBtmItems = createMemo(() => {
-    const d = drop();
-    const tools = sideBottomTools();
-    // Show the bottom section if it has real items OR if drag is targeting it / creating it
-    if (tools.length === 0 && (!d || (!d.isNewZone && d.dock !== bottomDock()))) return null;
-    return buildList(tools, bottomDock());
-  });
+  // Always returns an array (possibly empty) — bottom section is always rendered.
+  const renderBtmItems = createMemo(() => buildList(sideBottomTools(), bottomDock()));
 
   // ── Drop position computation ───────────────────────────────────
+  // The divider element is used as the split point between zones.
   function computeDrop(clientY: number): DropState | null {
     const dId = draggingId();
     if (!dId) return null;
@@ -203,40 +197,20 @@ export function ActivityBar(props: Props) {
       return r ? r.top + r.height / 2 : null;
     }
 
-    // ── Check bottom sidebar zone first ──
-    if (btmList.length > 0) {
-      const firstMid = mid(btmList[0].id);
-      if (firstMid !== null && clientY >= firstMid - 20) {
-        let afterId: string | null = null;
-        for (let i = btmList.length - 1; i >= 0; i--) {
-          const m = mid(btmList[i].id);
-          if (m !== null && clientY >= m) { afterId = btmList[i].id; break; }
-        }
-        return { dock: bottomDock(), afterId, isNewZone: false };
+    // Use the divider's bottom edge as the boundary between zones.
+    const dividerBottom = dividerRef?.getBoundingClientRect()?.bottom ?? Infinity;
+    const inBottomZone = clientY >= dividerBottom - 4;
+
+    if (inBottomZone) {
+      let afterId: string | null = null;
+      for (let i = btmList.length - 1; i >= 0; i--) {
+        const m = mid(btmList[i].id);
+        if (m !== null && clientY >= m) { afterId = btmList[i].id; break; }
       }
+      return { dock: bottomDock(), afterId, isNewZone: btmList.length === 0 };
     }
 
-    // ── Top zone ──
-    // If topList is empty (only the dragged icon was in the top zone), check whether
-    // the pointer is below the dragged icon itself so we can still create a new bottom zone.
-    if (topList.length === 0) {
-      if (btmList.length === 0) {
-        // Only icon in the whole bar — check if below its midpoint to create a bottom zone.
-        const draggedEl = iconRefs.get(dId)?.getBoundingClientRect();
-        if (draggedEl && clientY > draggedEl.bottom + 4) {
-          return { dock: bottomDock(), afterId: null, isNewZone: true };
-        }
-      }
-      return { dock: topDock(), afterId: null, isNewZone: false };
-    }
-
-    const lastId = topList[topList.length - 1].id;
-    const lastEl = iconRefs.get(lastId)?.getBoundingClientRect();
-
-    if (lastEl && clientY > lastEl.bottom + 4 && btmList.length === 0) {
-      return { dock: bottomDock(), afterId: null, isNewZone: true };
-    }
-
+    // Top zone — default for everything above the divider.
     let afterId: string | null = null;
     for (let i = topList.length - 1; i >= 0; i--) {
       const m = mid(topList[i].id);
@@ -330,31 +304,31 @@ export function ActivityBar(props: Props) {
         </For>
       </div>
 
-      {/* Bottom sidebar zone — with divider; also renders during drag-to-create */}
-      <Show when={renderBtmItems() !== null}>
-        <div class="activity-divider" />
-        <div class="activity-section">
-          <For each={renderBtmItems()!}>
-            {(item) =>
-              item.kind === "placeholder"
-                ? <div class="activity-placeholder" />
-                : item.kind === "spacer"
-                ? <div class="activity-spacer-slot" />
-                : (
-                  <button
-                    ref={(el) => iconRefs.set(item.id, el)}
-                    class={`activity-icon${isActive(item.id) ? " active" : ""}`}
-                    title={layout.registry[item.id]?.title ?? ""}
-                    onClick={() => toggleToolWindow(item.id)}
-                    onContextMenu={(e) => iconContextMenu(e, item.id)}
-                    onPointerDown={(e) => handleDragStart(e, item.id)}
-                    innerHTML={iconFor(item.id, layout.registry[item.id]?.icon ?? "")}
-                  />
-                )
-            }
-          </For>
-        </div>
-      </Show>
+      {/* Divider — always visible; acts as the split point between top and bottom zones */}
+      <div class="activity-divider" ref={dividerRef} />
+
+      {/* Bottom sidebar zone — always rendered so the divider position is stable */}
+      <div class="activity-section">
+        <For each={renderBtmItems()}>
+          {(item) =>
+            item.kind === "placeholder"
+              ? <div class="activity-placeholder" />
+              : item.kind === "spacer"
+              ? <div class="activity-spacer-slot" />
+              : (
+                <button
+                  ref={(el) => iconRefs.set(item.id, el)}
+                  class={`activity-icon${isActive(item.id) ? " active" : ""}`}
+                  title={layout.registry[item.id]?.title ?? ""}
+                  onClick={() => toggleToolWindow(item.id)}
+                  onContextMenu={(e) => iconContextMenu(e, item.id)}
+                  onPointerDown={(e) => handleDragStart(e, item.id)}
+                  innerHTML={iconFor(item.id, layout.registry[item.id]?.icon ?? "")}
+                />
+              )
+          }
+        </For>
+      </div>
 
       {/* Spacer */}
       <div class="activity-spacer" />

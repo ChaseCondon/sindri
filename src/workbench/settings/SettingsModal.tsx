@@ -1,6 +1,6 @@
 // Settings modal overlay — ADR-0021
 // Core shell: modal focus-traps, ESC closes. Nav has collapsible groups.
-import { createSignal, For, Show, onMount, onCleanup, createEffect, createResource } from "solid-js";
+import { createSignal, createMemo, For, Show, onMount, onCleanup, createEffect, createResource } from "solid-js";
 import {
   uiThemeId, setUiTheme,
   editorThemeId, setEditorTheme,
@@ -744,10 +744,15 @@ function ActiveExtensionSection() {
           <div class="ext-installed-list">
             <For each={localExts()}>
               {(record) => {
-                const enabled = () => record.enabled !== false;
+                const enabled = createMemo(() => {
+                  const current = installedExtensions().find((r) => r.id === record.id);
+                  return current?.enabled !== false;
+                });
                 async function toggleEnabled() {
                   if (enabled()) {
                     setExtensionEnabled(record.id, false);
+                    for (const wp of record.manifest.contributes?.webviewPanels ?? []) unregisterToolWindow(wp.id);
+                    for (const tv of record.manifest.contributes?.treeViews ?? []) unregisterToolWindow(tv.id);
                     if (isTauri()) {
                       const { invoke } = await import("@tauri-apps/api/core");
                       await invoke("ext_deactivate", { extId: record.id }).catch(() => {});
@@ -824,12 +829,18 @@ function ActiveExtensionSection() {
                 const displayManifest = isDevOverridden && record.savedPreDev
                   ? record.savedPreDev.manifest
                   : record.manifest;
-                const enabled = () => record.enabled !== false;
+                const enabled = createMemo(() => {
+                  const current = installedExtensions().find((r) => r.id === record.id);
+                  return current?.enabled !== false;
+                });
                 const activeVariant = () => record.activeVariant ?? "marketplace";
 
                 async function toggleEnabled() {
                   if (enabled()) {
                     setExtensionEnabled(record.id, false);
+                    const mf = displayManifest;
+                    for (const wp of mf.contributes?.webviewPanels ?? []) unregisterToolWindow(wp.id);
+                    for (const tv of mf.contributes?.treeViews ?? []) unregisterToolWindow(tv.id);
                     if (isTauri()) {
                       const { invoke } = await import("@tauri-apps/api/core");
                       await invoke("ext_deactivate", { extId: record.id }).catch(() => {});
