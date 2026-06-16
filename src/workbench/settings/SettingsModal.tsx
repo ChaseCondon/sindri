@@ -753,6 +753,7 @@ function ActiveExtensionSection() {
                     setExtensionEnabled(record.id, false);
                     for (const wp of record.manifest.contributes?.webviewPanels ?? []) unregisterToolWindow(wp.id);
                     for (const tv of record.manifest.contributes?.treeViews ?? []) unregisterToolWindow(tv.id);
+                    removeExtensionLogs(record.id);
                     if (isTauri()) {
                       const { invoke } = await import("@tauri-apps/api/core");
                       await invoke("ext_deactivate", { extId: record.id }).catch(() => {});
@@ -841,6 +842,7 @@ function ActiveExtensionSection() {
                     const mf = displayManifest;
                     for (const wp of mf.contributes?.webviewPanels ?? []) unregisterToolWindow(wp.id);
                     for (const tv of mf.contributes?.treeViews ?? []) unregisterToolWindow(tv.id);
+                    removeExtensionLogs(record.id);
                     if (isTauri()) {
                       const { invoke } = await import("@tauri-apps/api/core");
                       await invoke("ext_deactivate", { extId: record.id }).catch(() => {});

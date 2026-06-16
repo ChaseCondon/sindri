@@ -328,42 +328,25 @@ button:active {
   flex: 1;
 }
 
-/* ── Activity bar icon drag animations ─────────────────────────── */
+/* ── Activity bar drag system ────────────────────────────────────── */
 
-/* Dragged source icon collapses in-place */
-.activity-icon.icon-dragging {
-  max-height: 0 !important;
-  opacity: 0;
-  overflow: hidden;
-  padding: 0;
-  margin: 0;
+/* Source icon dims in place — no layout shift */
+.activity-icon.icon-dragging-source {
+  opacity: 0.3;
   pointer-events: none;
-  transition: max-height 0.14s ease, opacity 0.1s ease;
 }
 
-/* Placeholder slot — dotted outline at the insertion point */
-/* Invisible same-size spacer holds the source icon's layout slot during cross-zone drags */
-.activity-spacer-slot {
-  width: 36px;
-  height: 36px;
-  flex-shrink: 0;
-}
-
-.activity-placeholder {
-  width: 36px;
-  max-height: 36px;
-  height: 36px;
-  border: 2px dashed var(--accent);
-  border-radius: 7px;
-  background: var(--accent-tint);
-  flex-shrink: 0;
-  box-sizing: border-box;
-  animation: placeholderEnter 0.12s ease;
-}
-
-@keyframes placeholderEnter {
-  from { max-height: 0; opacity: 0; }
-  to   { max-height: 36px; opacity: 1; }
+/* Thin horizontal line showing the insertion target */
+.activity-drop-line {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 1px;
+  pointer-events: none;
+  z-index: 10;
+  box-shadow: 0 0 6px var(--accent);
 }
 
 /* ── Dock rail — vertical flex column wrapping primary + secondary zones ── */
