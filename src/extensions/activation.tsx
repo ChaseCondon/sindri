@@ -219,6 +219,30 @@ export async function activateExtensionFromSinxt(
   await activateSinxtExtension(sinxtPath, extId);
 }
 
+/**
+ * Synchronously pre-register tool windows from an already-known manifest.
+ *
+ * Called at the very start of rehydrateInstalledExtensions (before any await)
+ * so activity bar icons appear on the FIRST render, not after async activation.
+ * The full activateExtensionFromSinxt / activateExtensionWithManifest calls will
+ * later overwrite the registry entry with the real render functions — that's fine
+ * because registerToolWindow preserves the persisted window position.
+ */
+export function preRegisterManifestPanels(manifest: ExtensionManifest): void {
+  for (const tv of manifest.contributes?.treeViews ?? []) {
+    if (preRegisteredTreeViews.has(tv.id)) continue;
+    preRegisteredTreeViews.add(tv.id);
+    const icon = tv.icon?.trimStart().startsWith("<") ? tv.icon : ICON_TREE_VIEW;
+    registerTreeViewPanel(tv.id, tv.title, icon, tv.defaultDock ?? "left-top");
+  }
+  for (const wp of manifest.contributes?.webviewPanels ?? []) {
+    if (preRegisteredWebviewPanels.has(wp.id)) continue;
+    preRegisteredWebviewPanels.add(wp.id);
+    const icon = wp.icon?.trimStart().startsWith("<") ? wp.icon : ICON_TREE_VIEW;
+    registerWebviewPanel(wp.id, wp.title, icon, wp.defaultDock ?? "right-top");
+  }
+}
+
 export function initExtensionActivation(): void {
   // ADR-0030 — extension output log events
   listenExtEvent("__sindri.output.line", (payload) => {

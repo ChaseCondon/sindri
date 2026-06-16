@@ -3,7 +3,7 @@
 import { createSignal, createResource, For, Show, createMemo, ErrorBoundary, createEffect, onCleanup } from "solid-js";
 import type { ExtensionCategory, ExtensionManifest, RegistryIndexEntry } from "../../extensions/manifest";
 import { getRegistryClient, rawFileUrl, resolveIconThemeDef, resolveUiIconPackDef } from "../../extensions/registry-client";
-import { activateExtensionFromSinxt, activateExtensionWithManifest } from "../../extensions/activation";
+import { activateExtensionFromSinxt, activateExtensionWithManifest, preRegisterManifestPanels } from "../../extensions/activation";
 import { checkUpdatesOnly } from "../../extensions/update-checker";
 import { registerTheme, unregisterTheme, registerIconTheme, unregisterIconTheme, registerUiIconPack, unregisterUiIconPack, getThemeDef, setUiTheme, setIconTheme, setUiPack } from "../../theme/registry";
 import { unregisterToolWindow } from "../layout";
@@ -17,6 +17,7 @@ import {
 } from "./store";
 import { invoke } from "@tauri-apps/api/core";
 import { isTauri } from "../../lib/tauri";
+import { rebroadcastActiveEditor } from "../../editor/editor-state-bridge";
 // No explicit showExtensionErrors import — replaced by per-repo developerMode
 import bundledExtensions from "../../../core-extensions/bundled-extensions.json";
 
@@ -166,7 +167,7 @@ async function fetchAllEntries(): Promise<MarketplaceEntry[]> {
       merged.push(e);
     }
   }
-  _allEntries = merged;
+  setAllEntries(merged);
   // Templates are hidden (not directly installable); all other entries including pack members
   // appear in the browse list so they can be individually discovered and installed.
   return merged.filter(e => e.item.manifest.type !== "template");
@@ -176,7 +177,9 @@ async function fetchAllEntries(): Promise<MarketplaceEntry[]> {
 // Install
 // ---------------------------------------------------------------------------
 
-let _allEntries: MarketplaceEntry[] = [];
+// Reactive so the installed grid's Update button appears without a page refresh.
+const [_allEntries, _setAllEntries] = createSignal<MarketplaceEntry[]>([]);
+function setAllEntries(v: MarketplaceEntry[]): void { _setAllEntries(v); }
 
 async function doInstall(entry: MarketplaceEntry): Promise<boolean> {
   const { item, repoUrl } = entry;
@@ -186,7 +189,7 @@ async function doInstall(entry: MarketplaceEntry): Promise<boolean> {
   if (extensionPack?.length) {
     let allOk = true;
     for (const memberId of extensionPack) {
-      const memberEntry = _allEntries.find((e) => e.item.manifest.id === memberId);
+      const memberEntry = _allEntries().find((e) => e.item.manifest.id === memberId);
       if (memberEntry) {
         const ok = await doInstall(memberEntry);
         if (!ok) allOk = false;
@@ -219,7 +222,7 @@ async function doInstall(entry: MarketplaceEntry): Promise<boolean> {
     let iconJsonUrl = rawFileUrl(repoUrl, item.folderPath, iconTheme.path);
     let cssVars: Record<string, string> | undefined;
     if (item.manifest.extends) {
-      const baseEntry = _allEntries.find((e) => e.item.manifest.id === item.manifest.extends);
+      const baseEntry = _allEntries().find((e) => e.item.manifest.id === item.manifest.extends);
       if (baseEntry?.repoUrl) {
         const basePath = baseEntry.item.manifest.contributes?.iconThemes?.[0]?.path ?? "icons.json";
         iconJsonUrl = rawFileUrl(baseEntry.repoUrl, baseEntry.item.folderPath, basePath) ?? iconJsonUrl;
@@ -283,7 +286,7 @@ function doUninstall(entry: MarketplaceEntry): void {
 
   if (extensionPack?.length) {
     for (const memberId of extensionPack) {
-      const memberEntry = _allEntries.find((e) => e.item.manifest.id === memberId);
+      const memberEntry = _allEntries().find((e) => e.item.manifest.id === memberId);
       if (memberEntry) doUninstall(memberEntry);
     }
     removeExtensionLogs(id);
@@ -307,8 +310,9 @@ function doUninstall(entry: MarketplaceEntry): void {
 // ---------------------------------------------------------------------------
 
 export async function rehydrateInstalledExtensions(): Promise<void> {
-  // Pass 1 — synchronous: register log channels for all enabled extensions so
-  // the Extension Logs panel shows them immediately on startup.
+  // Pass 1 — synchronous: register log channels AND pre-register tool windows for
+  // all enabled extensions so activity bar icons AND log channels appear on the
+  // very first render, before any async activation completes.
   for (const record of installedExtensions()) {
     if (record.enabled === false) continue;
     if (record.manifest.id) {
@@ -318,6 +322,7 @@ export async function rehydrateInstalledExtensions(): Promise<void> {
         record.manifest.categories ?? ["Other"],
       );
     }
+    preRegisterManifestPanels(record.manifest);
   }
 
   // Pass 2 — activate sinxt and dev extensions immediately, without waiting
@@ -368,13 +373,18 @@ export async function rehydrateInstalledExtensions(): Promise<void> {
   const coreEntries: MarketplaceEntry[] = (bundledExtensions as RegistryIndexEntry[]).map(
     (item) => ({ item, repoUrl: null })
   );
-  _allEntries = [...coreEntries, ...[...repoIndexes.values()].flat()];
+  setAllEntries([...coreEntries, ...[...repoIndexes.values()].flat()]);
 
   for (const record of needsNetwork) {
-    const entry = _allEntries.find((e) => e.item.manifest.id === record.id);
+    const entry = _allEntries().find((e) => e.item.manifest.id === record.id);
     if (!entry || entry.repoUrl === null) continue;
     await reinstallEntry(entry);
   }
+
+  // All extensions have activated and registered their onDidChangeActiveEditor
+  // handlers. Re-broadcast the current editor state so they don't need a tab
+  // switch to read the file that was already open on startup.
+  rebroadcastActiveEditor();
 }
 
 async function reinstallEntry(entry: MarketplaceEntry): Promise<void> {
@@ -384,7 +394,7 @@ async function reinstallEntry(entry: MarketplaceEntry): Promise<void> {
 
   if (extensionPack?.length) {
     for (const memberId of extensionPack) {
-      const memberEntry = _allEntries.find((e) => e.item.manifest.id === memberId);
+      const memberEntry = _allEntries().find((e) => e.item.manifest.id === memberId);
       if (memberEntry) await reinstallEntry(memberEntry);
     }
     return;
@@ -404,7 +414,7 @@ async function reinstallEntry(entry: MarketplaceEntry): Promise<void> {
     let iconJsonUrl = rawFileUrl(repoUrl, item.folderPath, iconTheme.path);
     let cssVars: Record<string, string> | undefined;
     if (item.manifest.extends) {
-      const baseEntry = _allEntries.find((e) => e.item.manifest.id === item.manifest.extends);
+      const baseEntry = _allEntries().find((e) => e.item.manifest.id === item.manifest.extends);
       if (baseEntry?.repoUrl) {
         const basePath = baseEntry.item.manifest.contributes?.iconThemes?.[0]?.path ?? "icons.json";
         iconJsonUrl = rawFileUrl(baseEntry.repoUrl, baseEntry.item.folderPath, basePath) ?? iconJsonUrl;
@@ -756,6 +766,7 @@ export function MarketplaceSection() {
   const [refreshKey, setRefreshKey] = createSignal(0);
   const [search, setSearch] = createSignal("");
   const [showInstalled, setShowInstalled] = createSignal(false);
+  const [showUpdates, setShowUpdates] = createSignal(false);
   const [installing, setInstalling] = createSignal<string | null>(null);
   const [installFailed, setInstallFailed] = createSignal<string | null>(null);
   const [entries] = createResource(refreshKey, fetchAllEntries);
@@ -770,9 +781,14 @@ export function MarketplaceSection() {
     if (!selected()) setSelected(list[0]);
   });
 
+  const pendingUpdates = createMemo(() =>
+    (entries() ?? []).filter((e) => e.repoUrl && installedIds().has(e.item.manifest.id) && hasUpdate(e))
+  );
+
   const searched = createMemo(() => {
     const q = search().trim();
     let list = entries() ?? [];
+    if (showUpdates()) return pendingUpdates();
     if (q) list = list.filter((e) => fuzzyMatch(q, e.item));
     if (showInstalled()) list = list.filter((e) => e.repoUrl === null || installedIds().has(e.item.manifest.id));
     return list;
@@ -850,10 +866,17 @@ export function MarketplaceSection() {
         />
         <button
           class={`mkt-filter-installed${showInstalled() ? " active" : ""}`}
-          onClick={() => setShowInstalled((v) => !v)}
+          onClick={() => { setShowInstalled((v) => !v); setShowUpdates(false); setSelected(null); }}
           title="Show installed only"
         >
           Installed
+        </button>
+        <button
+          class={`mkt-filter-installed${showUpdates() ? " active" : ""}${pendingUpdates().length > 0 ? " mkt-filter-has-updates" : ""}`}
+          onClick={() => { setShowUpdates((v) => !v); setShowInstalled(false); setSelected(null); }}
+          title="Show extensions with updates"
+        >
+          Updates{pendingUpdates().length > 0 ? ` (${pendingUpdates().length})` : ""}
         </button>
       </div>
 
@@ -865,7 +888,7 @@ export function MarketplaceSection() {
           </Show>
           <For each={installedExtensions()}>
             {(record) => {
-              const entry = () => _allEntries.find((e) => e.item.manifest.id === record.id) ?? null;
+              const entry = () => _allEntries().find((e) => e.item.manifest.id === record.id) ?? null;
               const updateAvail = () => {
                 const e = entry();
                 return e && e.repoUrl ? hasUpdate(e) : false;
@@ -1080,6 +1103,7 @@ function ExtensionDetail(props: {
   const isBundled = props.entry.repoUrl === null;
   const installed = () => installedIds().has(manifest.id);
   const isPack = isExtensionPack(manifest);
+  const updateAvailable = () => installed() && !isBundled && hasUpdate(props.entry);
   // available === false means stub/WIP — no .sinxt exists yet. Absent means available.
   const needsHost = !isPack && !!manifest.main && manifest.available === false;
 
@@ -1159,7 +1183,7 @@ function ExtensionDetail(props: {
 
   const packResolved = () => (manifest.extensionPack ?? []).map((id) => ({
     id,
-    entry: _allEntries.find((e) => e.item.manifest.id === id) ?? null,
+    entry: _allEntries().find((e) => e.item.manifest.id === id) ?? null,
   }));
 
   const packAllInstalled = () => packResolved().every(
@@ -1171,7 +1195,7 @@ function ExtensionDetail(props: {
     function resolve(ids: string[], depth: number): Array<{ id: string; entry: MarketplaceEntry | null; depth: number }> {
       const result: Array<{ id: string; entry: MarketplaceEntry | null; depth: number }> = [];
       for (const id of ids) {
-        const entry = _allEntries.find((e) => e.item.manifest.id === id) ?? null;
+        const entry = _allEntries().find((e) => e.item.manifest.id === id) ?? null;
         result.push({ id, entry, depth });
         if (entry && (entry.item.manifest.extensionPack?.length ?? 0) > 0 && depth < 2) {
           result.push(...resolve(entry.item.manifest.extensionPack!, depth + 1));
@@ -1183,7 +1207,7 @@ function ExtensionDetail(props: {
   });
 
   // Packs/collections that declare this extension as a member
-  const parentEntries = () => _allEntries.filter(e => e.item.manifest.extensionPack?.includes(manifest.id));
+  const parentEntries = () => _allEntries().filter(e => e.item.manifest.extensionPack?.includes(manifest.id));
 
   // "Apply theme" only if direct members actually carry theme contributes.
   // Collections' direct members are sub-packs with contributes:{} → some() = false.
@@ -1254,6 +1278,13 @@ function ExtensionDetail(props: {
         <Show when={!isBundled && !needsHost && !isPack && installed()}>
           <div class="mkt-installed-row">
             <span class="mkt-installed-label">✓ Installed</span>
+            <Show when={updateAvailable()}>
+              <button
+                class="settings-btn-primary"
+                disabled={props.installing}
+                onClick={props.onInstall}
+              >{props.installing ? "Updating…" : "Update"}</button>
+            </Show>
             <button class="settings-btn-secondary" onClick={props.onUninstall}>Uninstall</button>
           </div>
         </Show>

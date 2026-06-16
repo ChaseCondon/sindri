@@ -412,6 +412,25 @@ function _removeDecorationProvider(providerId: string): void {
   if (view) updateExtDecorations([view], providerId, Decoration.none);
 }
 
+/**
+ * Re-broadcast the current active editor state to all extensions.
+ *
+ * The `createEffect` above fires once at startup — before extensions activate
+ * and register their `onDidChangeActiveEditor` handlers. Calling this after
+ * all extensions have activated ensures they receive the initial editor state
+ * without needing the user to switch tabs.
+ */
+export function rebroadcastActiveEditor(): void {
+  const activeGroup = groupStore.activeGroup;
+  const group = groupStore.groups[activeGroup];
+  const bufferId = group?.activeBufferId ?? "";
+  if (!bufferId) return;
+  const info = buildEditorInfo(bufferId);
+  if (info) {
+    fireAndForget(dispatch("__sindri.editor.activeEditorChanged", JSON.stringify(info)));
+  }
+}
+
 /** Remove all decoration providers registered by an extension and clear their decorations immediately. */
 export function deregisterExtDecorations(extId: string): void {
   const providers: string[] = [];

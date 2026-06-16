@@ -337,18 +337,17 @@ button:active {
   pointer-events: none;
 }
 
-/* Drop indicator block — absolutely positioned so it never shifts icon layout */
-.activity-drop-indicator {
-  position: absolute;
-  left: 4px;
-  right: 4px;
+/* Placeholder block in the drag render-list — flex item, same size as an icon.
+   Icons shift aside to make room for it, showing exactly where the drop will land. */
+.activity-placeholder {
+  width: 36px;
   height: 36px;
   border: 1.5px dashed var(--accent);
   border-radius: 7px;
   background: var(--accent-tint);
   opacity: 0.8;
+  flex-shrink: 0;
   pointer-events: none;
-  z-index: 1;
 }
 
 /* ── Dock rail — vertical flex column wrapping primary + secondary zones ── */
@@ -2285,6 +2284,10 @@ button:active {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--accent-tint);
+}
+.mkt-filter-has-updates {
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  color: var(--text);
 }
 
 .mkt-body {
