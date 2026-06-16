@@ -1,4 +1,4 @@
-import { For, Show, createSignal, createMemo } from "solid-js";
+import { For, Show, createSignal } from "solid-js";
 import {
   layout,
   windowsForDock,
@@ -10,7 +10,6 @@ import {
   showToolWindow,
   isToolWindowHidden,
   type DockId,
-  type ToolWindowDef,
 } from "./layout";
 import { openMenu } from "./ContextMenu";
 import { moveToolWindow } from "./layout";
@@ -20,7 +19,6 @@ function iconFor(id: string, fallback: string): string {
   return activeUiIconPack()?.icons[id] ?? fallback;
 }
 
-// "top" is a valid DockId but has no rendered bar — omitted to prevent stranding icons.
 const MOVEABLE_DOCKS: DockId[] = [
   "left-top", "left-bottom",
   "right-top", "right-bottom",
@@ -34,19 +32,20 @@ const DOCK_LABELS: Partial<Record<DockId, string>> = {
   bottom: "Bottom dock",
 };
 
-// Stable sentinel used as the placeholder item in the render list.
-const PLACEHOLDER_ID = "__activity-placeholder__";
-const PLACEHOLDER_DEF = { id: PLACEHOLDER_ID } as ToolWindowDef;
-
 interface Props {
   side: "left" | "right";
 }
 
-interface DropTarget {
+// The drag indicator state: where the dropped icon will land + the Y position
+// (relative to the activity-bar element) for the absolutely-positioned block.
+interface DragState {
+  id: string;
   dock: DockId;
   afterId: string | null;
   isNewZone: boolean;
+  blockY: number; // top of the 36px indicator block, px from bar top
 }
+
 
 export function ActivityBar(props: Props) {
   const topDock = (): DockId => `${props.side}-top` as DockId;
@@ -121,62 +120,60 @@ export function ActivityBar(props: Props) {
   }
 
   // ── Drag state ─────────────────────────────────────────────────
-  // The source icon stays in its original position (dimmed).
-  // A placeholder block — styled like tab-placeholder — is inserted into the
-  // render list at the computed drop target, showing exactly where the icon lands.
-  const [draggingId, setDraggingId] = createSignal<string | null>(null);
-  const [dropTarget, setDropTarget] = createSignal<DropTarget | null>(null);
+  // The indicator block is absolutely positioned inside `.activity-bar`
+  // (which has position:relative). It does NOT modify the render list, so
+  // icon DOM positions never shift during drag — no feedback loop.
+  const [dragState, setDragState] = createSignal<DragState | null>(null);
 
+  let barRef!: HTMLDivElement;
   let dividerRef!: HTMLDivElement;
   let ghostEl: HTMLButtonElement | null = null;
   const iconRefs = new Map<string, HTMLButtonElement>();
 
-  // Build render list: source stays (will be dimmed), placeholder inserted at target.
-  function buildList(tools: ToolWindowDef[], dock: DockId): ToolWindowDef[] {
-    const dt = dropTarget();
-    if (!dt || dt.dock !== dock) return tools;
+  // Cached icon rects taken at the START of each drag (before any visual
+  // changes) so computations stay stable throughout the gesture.
+  let cachedRects = new Map<string, DOMRect>();
+  let cachedDividerBottom = Infinity;
 
-    const result = [...tools];
-    const afterIdx = dt.afterId !== null
-      ? result.findIndex(t => t.id === dt.afterId)
-      : -1;
-    result.splice(afterIdx + 1, 0, PLACEHOLDER_DEF);
-    return result;
-  }
-
-  const topRenderList = createMemo(() => buildList(topTools(), topDock()));
-  const btmRenderList = createMemo(() => buildList(sideBottomTools(), bottomDock()));
-
-  // ── Drop computation ────────────────────────────────────────────
-  function computeDropTarget(clientY: number, dId: string): DropTarget | null {
+  function computeDragState(clientY: number, dId: string): DragState {
     const topList = topTools();
     const btmList = sideBottomTools();
+    const barTop = barRef.getBoundingClientRect().top;
+    const inBottomZone = clientY >= cachedDividerBottom - 4;
 
-    const dividerRect = dividerRef?.getBoundingClientRect();
-    const inBottomZone = dividerRect ? clientY >= dividerRect.bottom - 4 : false;
+    function afterBelow(list: typeof topList): string | null {
+      for (let i = list.length - 1; i >= 0; i--) {
+        if (list[i].id === dId) continue;
+        const r = cachedRects.get(list[i].id);
+        if (r && clientY >= r.top + r.height / 2) return list[i].id;
+      }
+      return null;
+    }
 
-    function mid(id: string): number | null {
-      const r = iconRefs.get(id)?.getBoundingClientRect();
-      return r ? r.top + r.height / 2 : null;
+    function blockY(afterId: string | null, fallbackY: number): number {
+      if (afterId !== null) {
+        const r = cachedRects.get(afterId);
+        return r ? r.bottom - barTop + 1 : fallbackY;
+      }
+      return fallbackY; // "place at top of zone" — use the zone's top offset
     }
 
     if (inBottomZone) {
-      let afterId: string | null = null;
-      for (let i = btmList.length - 1; i >= 0; i--) {
-        if (btmList[i].id === dId) continue;
-        const m = mid(btmList[i].id);
-        if (m !== null && clientY >= m) { afterId = btmList[i].id; break; }
-      }
-      return { dock: bottomDock(), afterId, isNewZone: btmList.length === 0 };
+      const afterId = afterBelow(btmList);
+      const fallback = cachedDividerBottom - barTop + 2;
+      return {
+        id: dId, dock: bottomDock(), afterId,
+        isNewZone: btmList.length === 0,
+        blockY: blockY(afterId, fallback),
+      };
     }
 
-    let afterId: string | null = null;
-    for (let i = topList.length - 1; i >= 0; i--) {
-      if (topList[i].id === dId) continue;
-      const m = mid(topList[i].id);
-      if (m !== null && clientY >= m) { afterId = topList[i].id; break; }
-    }
-    return { dock: topDock(), afterId, isNewZone: false };
+    const afterId = afterBelow(topList);
+    return {
+      id: dId, dock: topDock(), afterId,
+      isNewZone: false,
+      blockY: blockY(afterId, 4),
+    };
   }
 
   // ── Drag handlers ───────────────────────────────────────────────
@@ -194,14 +191,23 @@ export function ActivityBar(props: Props) {
       el.removeEventListener("pointerup", onUp);
       el.removeEventListener("pointercancel", onCancel);
       if (ghostEl) { ghostEl.remove(); ghostEl = null; }
-      setDraggingId(null);
-      setDropTarget(null);
+      setDragState(null);
     }
 
     function onMove(ev: PointerEvent) {
       if (!dragging && Math.abs(ev.clientY - startY) > 5) {
         dragging = true;
-        setDraggingId(id);
+        // Snapshot ALL icon and divider positions NOW, before any visual
+        // changes happen. These cached rects are used for all subsequent
+        // computeDropTarget calls — stable, no feedback loop.
+        cachedRects.clear();
+        for (const [iconId, iconEl] of iconRefs) {
+          cachedRects.set(iconId, iconEl.getBoundingClientRect());
+        }
+        cachedDividerBottom = dividerRef?.getBoundingClientRect()?.bottom ?? Infinity;
+
+        setDragState({ id, dock: topDock(), afterId: null, isNewZone: false, blockY: 4 });
+
         const srcEl = iconRefs.get(id);
         if (srcEl) {
           const r = srcEl.getBoundingClientRect();
@@ -220,19 +226,18 @@ export function ActivityBar(props: Props) {
       }
       if (dragging) {
         if (ghostEl) ghostEl.style.top = `${ev.clientY - parseFloat(ghostEl.style.height) / 2}px`;
-        setDropTarget(computeDropTarget(ev.clientY, id));
+        setDragState(computeDragState(ev.clientY, id));
       }
     }
 
     function onUp() {
-      const dt = dropTarget();
+      const ds = dragState();
       const wasActive = dragging;
       cleanup();
-      if (wasActive && dt) {
-        reorderToolWindow(id, dt.dock, dt.afterId);
-        if (dt.isNewZone) {
-          const srcEl = iconRefs.get(id);
-          const railH = srcEl?.closest(".dock-rail")?.clientHeight ?? 400;
+      if (wasActive && ds) {
+        reorderToolWindow(id, ds.dock, ds.afterId);
+        if (ds.isNewZone) {
+          const railH = barRef.parentElement?.clientHeight ?? 400;
           setDockSize(bottomDock(), Math.round(railH / 2));
         }
       }
@@ -246,50 +251,47 @@ export function ActivityBar(props: Props) {
   }
 
   return (
-    <div class={`activity-bar activity-bar-${props.side}`} onContextMenu={barContextMenu}>
+    <div class={`activity-bar activity-bar-${props.side}`} ref={barRef} onContextMenu={barContextMenu}>
+
+      {/* Drop indicator — absolutely positioned block, doesn't shift icons */}
+      <Show when={dragState()}>
+        <div class="activity-drop-indicator" style={{ top: `${dragState()!.blockY}px` }} />
+      </Show>
 
       {/* Top sidebar zone */}
       <div class="activity-section">
-        <For each={topRenderList()}>
-          {(def) =>
-            def.id === PLACEHOLDER_ID
-              ? <div class="activity-placeholder" />
-              : (
-                <button
-                  ref={(el) => iconRefs.set(def.id, el)}
-                  class={`activity-icon${isActive(def.id) ? " active" : ""}${draggingId() === def.id ? " icon-dragging-source" : ""}`}
-                  title={def.title}
-                  onClick={() => toggleToolWindow(def.id)}
-                  onContextMenu={(e) => iconContextMenu(e, def.id)}
-                  onPointerDown={(e) => handleDragStart(e, def.id)}
-                  innerHTML={iconFor(def.id, def.icon)}
-                />
-              )
-          }
+        <For each={topTools()}>
+          {(def) => (
+            <button
+              ref={(el) => iconRefs.set(def.id, el)}
+              class={`activity-icon${isActive(def.id) ? " active" : ""}${dragState()?.id === def.id ? " icon-dragging-source" : ""}`}
+              title={def.title}
+              onClick={() => toggleToolWindow(def.id)}
+              onContextMenu={(e) => iconContextMenu(e, def.id)}
+              onPointerDown={(e) => handleDragStart(e, def.id)}
+              innerHTML={iconFor(def.id, def.icon)}
+            />
+          )}
         </For>
       </div>
 
       {/* Divider — always visible; marks the boundary between top and bottom zones */}
       <div class="activity-divider" ref={dividerRef} />
 
-      {/* Bottom sidebar zone — always rendered so the divider stays stable */}
+      {/* Bottom sidebar zone — always rendered so the divider position is stable */}
       <div class="activity-section">
-        <For each={btmRenderList()}>
-          {(def) =>
-            def.id === PLACEHOLDER_ID
-              ? <div class="activity-placeholder" />
-              : (
-                <button
-                  ref={(el) => iconRefs.set(def.id, el)}
-                  class={`activity-icon${isActive(def.id) ? " active" : ""}${draggingId() === def.id ? " icon-dragging-source" : ""}`}
-                  title={def.title}
-                  onClick={() => toggleToolWindow(def.id)}
-                  onContextMenu={(e) => iconContextMenu(e, def.id)}
-                  onPointerDown={(e) => handleDragStart(e, def.id)}
-                  innerHTML={iconFor(def.id, def.icon)}
-                />
-              )
-          }
+        <For each={sideBottomTools()}>
+          {(def) => (
+            <button
+              ref={(el) => iconRefs.set(def.id, el)}
+              class={`activity-icon${isActive(def.id) ? " active" : ""}${dragState()?.id === def.id ? " icon-dragging-source" : ""}`}
+              title={def.title}
+              onClick={() => toggleToolWindow(def.id)}
+              onContextMenu={(e) => iconContextMenu(e, def.id)}
+              onPointerDown={(e) => handleDragStart(e, def.id)}
+              innerHTML={iconFor(def.id, def.icon)}
+            />
+          )}
         </For>
       </div>
 

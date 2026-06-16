@@ -13,6 +13,7 @@ import {
   registryRepos, installedIds, installedExtensions, installExtension, uninstallExtension,
   setExtensionEnabled,
   liveThemePreview, setPreviewThemeDef,
+  type InstalledRecord,
 } from "./store";
 import { invoke } from "@tauri-apps/api/core";
 import { isTauri } from "../../lib/tauri";
@@ -306,9 +307,8 @@ function doUninstall(entry: MarketplaceEntry): void {
 // ---------------------------------------------------------------------------
 
 export async function rehydrateInstalledExtensions(): Promise<void> {
-  // Synchronously register log channels for all enabled extensions so the
-  // Extension Logs panel shows them immediately on startup, before async
-  // activation (which may take a moment or fail silently) completes.
+  // Pass 1 — synchronous: register log channels for all enabled extensions so
+  // the Extension Logs panel shows them immediately on startup.
   for (const record of installedExtensions()) {
     if (record.enabled === false) continue;
     if (record.manifest.id) {
@@ -320,31 +320,13 @@ export async function rehydrateInstalledExtensions(): Promise<void> {
     }
   }
 
-  const client = getRegistryClient();
-  const repos = registryRepos();
-
-  // Build a map of repoUrl → fetched entries for efficiency
-  const repoIndexes = new Map<string, MarketplaceEntry[]>();
-  await Promise.all(
-    repos.map(async (repo) => {
-      const index = await client.fetchIndex(repo.url);
-      if (index) {
-        repoIndexes.set(repo.url, index.map((item) => ({ item, repoUrl: repo.url })));
-      }
-    })
-  );
-
-  // Resolve all entries into _allEntries for pack member lookup
-  const coreEntries: MarketplaceEntry[] = (bundledExtensions as RegistryIndexEntry[]).map(
-    (item) => ({ item, repoUrl: null })
-  );
-  const allRemote = [...repoIndexes.values()].flat();
-  _allEntries = [...coreEntries, ...allRemote];
-
-  // Re-install each stored installed extension (skip bundled — already registered)
+  // Pass 2 — activate sinxt and dev extensions immediately, without waiting
+  // for a network fetch. Their sinxtPath/folderPath is already on disk so
+  // tool windows (sidebar icons) appear as soon as the Tauri command returns.
+  const needsNetwork: InstalledRecord[] = [];
   for (const record of installedExtensions()) {
-    if (record.enabled === false) continue; // user-disabled; skip activation
-    // Dev/source extension: re-spawn watch + activate from last-built dev dir.
+    if (record.enabled === false) continue;
+
     if (record.repoUrl === "dev" && record.folderPath) {
       try {
         const { invoke } = await import("@tauri-apps/api/core");
@@ -359,7 +341,6 @@ export async function rehydrateInstalledExtensions(): Promise<void> {
       continue;
     }
 
-    // Code extensions installed via marketplace: reactivate from the local .sinxt.
     if (record.sinxtPath) {
       await activateExtensionFromSinxt(record.sinxtPath, record.manifest).catch((e) => {
         console.error(`[Marketplace] failed to reactivate sinxt for ${record.id}:`, e);
@@ -367,9 +348,31 @@ export async function rehydrateInstalledExtensions(): Promise<void> {
       continue;
     }
 
+    // Bundled/theme extensions without a sinxtPath need the network index to reinstall.
+    needsNetwork.push(record);
+  }
+
+  // Pass 3 — fetch the registry index (needed for UI and for reinstalling
+  // bundled/theme entries that have no sinxtPath).
+  const client = getRegistryClient();
+  const repos = registryRepos();
+  const repoIndexes = new Map<string, MarketplaceEntry[]>();
+  await Promise.all(
+    repos.map(async (repo) => {
+      const index = await client.fetchIndex(repo.url);
+      if (index) {
+        repoIndexes.set(repo.url, index.map((item) => ({ item, repoUrl: repo.url })));
+      }
+    })
+  );
+  const coreEntries: MarketplaceEntry[] = (bundledExtensions as RegistryIndexEntry[]).map(
+    (item) => ({ item, repoUrl: null })
+  );
+  _allEntries = [...coreEntries, ...[...repoIndexes.values()].flat()];
+
+  for (const record of needsNetwork) {
     const entry = _allEntries.find((e) => e.item.manifest.id === record.id);
     if (!entry || entry.repoUrl === null) continue;
-    // Re-run install without re-persisting (themes/icons need to be in memory)
     await reinstallEntry(entry);
   }
 }

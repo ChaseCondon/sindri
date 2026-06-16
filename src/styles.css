@@ -337,15 +337,18 @@ button:active {
   pointer-events: none;
 }
 
-/* Placeholder block at the drop target — same style as tab-placeholder */
-.activity-placeholder {
-  width: 36px;
+/* Drop indicator block — absolutely positioned so it never shifts icon layout */
+.activity-drop-indicator {
+  position: absolute;
+  left: 4px;
+  right: 4px;
   height: 36px;
   border: 1.5px dashed var(--accent);
   border-radius: 7px;
   background: var(--accent-tint);
-  opacity: 0.75;
-  flex-shrink: 0;
+  opacity: 0.8;
+  pointer-events: none;
+  z-index: 1;
 }
 
 /* ── Dock rail — vertical flex column wrapping primary + secondary zones ── */
