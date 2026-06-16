@@ -342,6 +342,13 @@ button:active {
 }
 
 /* Placeholder slot — dotted outline at the insertion point */
+/* Invisible same-size spacer holds the source icon's layout slot during cross-zone drags */
+.activity-spacer-slot {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+}
+
 .activity-placeholder {
   width: 36px;
   max-height: 36px;
@@ -2110,6 +2117,101 @@ button:active {
 
 .ext-active-actions {
   margin-top: 12px;
+}
+
+/* ── Installed extensions card list ───────────────────────────────────────── */
+
+.ext-installed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.ext-installed-card {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--bg-1) 40%, transparent);
+  transition: border-color 0.1s;
+}
+
+.ext-installed-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+
+.ext-installed-card--disabled {
+  opacity: 0.55;
+}
+
+.ext-installed-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ext-installed-card-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-normal);
+  flex-shrink: 0;
+}
+
+.ext-installed-card-desc {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin: 4px 0 0 0;
+  line-height: 1.4;
+}
+
+.ext-installed-card-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.ext-installed-toggle {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+  white-space: nowrap;
+}
+
+.ext-installed-toggle--on {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  color: var(--accent);
+}
+
+.ext-installed-toggle:hover {
+  border-color: var(--accent);
+  color: var(--text-normal);
+}
+
+.ext-installed-badge--override {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, #c9a227 15%, transparent);
+  color: #c9a227;
+  border: 1px solid color-mix(in srgb, #c9a227 30%, transparent);
+  white-space: nowrap;
+}
+
+.ext-installed-dev-note {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-style: italic;
 }
 
 .langpacks-browse-btn {

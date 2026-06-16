@@ -16,6 +16,7 @@ import {
   activeLocale, setLocale,
   installedIds, installedExtensions, installExtension, uninstallExtension, updateInstalledExtension,
   loadDevExtension, setLocalSinxtAlt, switchExtensionVariant, activeSinxtPath, activeManifest,
+  setExtensionEnabled,
   liveThemePreview, setLiveThemePreview,
   previewThemeDef,
 } from "./store";
@@ -601,7 +602,11 @@ function ActiveExtensionSection() {
 
   const devExtensions = () => installedExtensions().filter((r) => r.repoUrl === "dev");
   const localExts = () => installedExtensions().filter((r) => r.repoUrl === "local");
-  const marketplaceExts = () => installedExtensions().filter((r) => r.repoUrl !== "dev" && r.repoUrl !== "local");
+  // Dev extensions that override a marketplace install are shown here (with an "overridden" badge)
+  // so the user can see what's installed — management (remove dev) happens in the Dev tab.
+  const marketplaceExts = () => installedExtensions().filter(
+    (r) => (r.repoUrl !== "dev" && r.repoUrl !== "local") || (r.repoUrl === "dev" && !!r.savedPreDev),
+  );
 
   async function handleLoadFromSource() {
     setStatus(null);
@@ -736,30 +741,63 @@ function ActiveExtensionSection() {
         <Show when={localExts().length > 0} fallback={
           <div class="ext-active-empty">No locally installed extensions.</div>
         }>
-          <For each={localExts()}>
-            {(record) => (
-              <div class="ext-active-row">
-                <span class="ext-active-name">{record.manifest.name ?? record.id}</span>
-                <span class="ext-active-badge">v{record.manifest.version ?? "?"}</span>
-                <button
-                  class="settings-btn-secondary ext-active-uninstall"
-                  onClick={async () => {
-                    deregisterExtDecorations(record.id);
-                    for (const wp of record.manifest.contributes?.webviewPanels ?? []) unregisterToolWindow(wp.id);
-                    for (const tv of record.manifest.contributes?.treeViews ?? []) unregisterToolWindow(tv.id);
-                    removeExtensionLogs(record.id);
-                    uninstallExtension(record.id);
+          <div class="ext-installed-list">
+            <For each={localExts()}>
+              {(record) => {
+                const enabled = () => record.enabled !== false;
+                async function toggleEnabled() {
+                  if (enabled()) {
+                    setExtensionEnabled(record.id, false);
                     if (isTauri()) {
                       const { invoke } = await import("@tauri-apps/api/core");
                       await invoke("ext_deactivate", { extId: record.id }).catch(() => {});
                     }
-                  }}
-                >
-                  Uninstall
-                </button>
-              </div>
-            )}
-          </For>
+                  } else {
+                    setExtensionEnabled(record.id, true);
+                    const sinxt = record.sinxtPath;
+                    if (sinxt && isTauri()) activateExtensionFromSinxt(sinxt, record.manifest).catch(() => {});
+                  }
+                }
+                return (
+                  <div class={`ext-installed-card${enabled() ? "" : " ext-installed-card--disabled"}`}>
+                    <div class="ext-installed-card-header">
+                      <span class="ext-installed-card-name">{record.manifest.name ?? record.id}</span>
+                      <span class="ext-active-badge">v{record.manifest.version ?? "?"}</span>
+                      <div class="ext-installed-card-actions">
+                        <button
+                          class={`ext-installed-toggle${enabled() ? " ext-installed-toggle--on" : ""}`}
+                          onClick={toggleEnabled}
+                          title={enabled() ? "Disable extension" : "Enable extension"}
+                        >
+                          {enabled() ? "Enabled" : "Disabled"}
+                        </button>
+                        <button
+                          class="settings-btn-secondary"
+                          style="font-size:11px;padding:2px 8px;"
+                          onClick={async () => {
+                            deregisterExtDecorations(record.id);
+                            for (const wp of record.manifest.contributes?.webviewPanels ?? []) unregisterToolWindow(wp.id);
+                            for (const tv of record.manifest.contributes?.treeViews ?? []) unregisterToolWindow(tv.id);
+                            removeExtensionLogs(record.id);
+                            uninstallExtension(record.id);
+                            if (isTauri()) {
+                              const { invoke } = await import("@tauri-apps/api/core");
+                              await invoke("ext_deactivate", { extId: record.id }).catch(() => {});
+                            }
+                          }}
+                        >
+                          Uninstall
+                        </button>
+                      </div>
+                    </div>
+                    <Show when={record.manifest.description}>
+                      <p class="ext-installed-card-desc">{record.manifest.description}</p>
+                    </Show>
+                  </div>
+                );
+              }}
+            </For>
+          </div>
         </Show>
 
         <Show when={isTauri()}>
@@ -778,56 +816,107 @@ function ActiveExtensionSection() {
         {/* Marketplace installed */}
         <Show when={marketplaceExts().length > 0}>
           <h3 class="settings-subsection-title" style="margin-top: 1.25rem">From marketplace</h3>
-          <For each={marketplaceExts()}>
-            {(record) => {
-              const activeVariant = () => record.activeVariant ?? "marketplace";
-              async function handleSwitch(variant: "marketplace" | "local") {
-                switchExtensionVariant(record.id, variant);
-                const sinxt = variant === "local" && record.localSinxtAlt
-                  ? record.localSinxtAlt.sinxtPath
-                  : record.sinxtPath;
-                const mf = variant === "local" && record.localSinxtAlt
-                  ? record.localSinxtAlt.manifest
+          <div class="ext-installed-list">
+            <For each={marketplaceExts()}>
+              {(record) => {
+                const isDevOverridden = record.repoUrl === "dev";
+                // For dev-overridden entries show the saved marketplace manifest info
+                const displayManifest = isDevOverridden && record.savedPreDev
+                  ? record.savedPreDev.manifest
                   : record.manifest;
-                if (sinxt) await activateExtensionFromSinxt(sinxt, mf).catch(() => {});
-              }
-              return (
-                <div class="ext-active-row">
-                  <span class="ext-active-name">{record.manifest.name ?? record.id}</span>
-                  <Show when={record.localSinxtAlt}
-                    fallback={
-                      <span class="ext-active-badge">v{record.manifest.version ?? "?"}</span>
+                const enabled = () => record.enabled !== false;
+                const activeVariant = () => record.activeVariant ?? "marketplace";
+
+                async function toggleEnabled() {
+                  if (enabled()) {
+                    setExtensionEnabled(record.id, false);
+                    if (isTauri()) {
+                      const { invoke } = await import("@tauri-apps/api/core");
+                      await invoke("ext_deactivate", { extId: record.id }).catch(() => {});
                     }
-                  >
-                    <select
-                      class="ext-variant-select"
-                      value={activeVariant()}
-                      onChange={(e) => handleSwitch(e.currentTarget.value as "marketplace" | "local")}
-                    >
-                      <option value="marketplace">marketplace v{record.manifest.version ?? "?"}</option>
-                      <option value="local">local .sinxt v{record.localSinxtAlt!.manifest.version ?? "?"}</option>
-                    </select>
-                  </Show>
-                  <button
-                    class="settings-btn-secondary ext-active-uninstall"
-                    onClick={async () => {
-                      deregisterExtDecorations(record.id);
-                      for (const wp of record.manifest.contributes?.webviewPanels ?? []) unregisterToolWindow(wp.id);
-                      for (const tv of record.manifest.contributes?.treeViews ?? []) unregisterToolWindow(tv.id);
-                      removeExtensionLogs(record.id);
-                      uninstallExtension(record.id);
-                      if (isTauri()) {
-                        const { invoke } = await import("@tauri-apps/api/core");
-                        await invoke("ext_deactivate", { extId: record.id }).catch(() => {});
-                      }
-                    }}
-                  >
-                    Uninstall
-                  </button>
-                </div>
-              );
-            }}
-          </For>
+                  } else {
+                    setExtensionEnabled(record.id, true);
+                    const sinxt = record.sinxtPath;
+                    if (sinxt && isTauri()) activateExtensionFromSinxt(sinxt, record.manifest).catch(() => {});
+                  }
+                }
+                async function handleSwitch(variant: "marketplace" | "local") {
+                  switchExtensionVariant(record.id, variant);
+                  const sinxt = variant === "local" && record.localSinxtAlt
+                    ? record.localSinxtAlt.sinxtPath
+                    : record.sinxtPath;
+                  const mf = variant === "local" && record.localSinxtAlt
+                    ? record.localSinxtAlt.manifest
+                    : record.manifest;
+                  if (sinxt) await activateExtensionFromSinxt(sinxt, mf).catch(() => {});
+                }
+
+                return (
+                  <div class={`ext-installed-card${enabled() && !isDevOverridden ? "" : " ext-installed-card--disabled"}`}>
+                    <div class="ext-installed-card-header">
+                      <span class="ext-installed-card-name">{displayManifest.name ?? record.id}</span>
+                      <Show when={isDevOverridden}
+                        fallback={
+                          <Show when={record.localSinxtAlt}
+                            fallback={<span class="ext-active-badge">v{displayManifest.version ?? "?"}</span>}
+                          >
+                            <select
+                              class="ext-variant-select"
+                              value={activeVariant()}
+                              onChange={(e) => handleSwitch(e.currentTarget.value as "marketplace" | "local")}
+                            >
+                              <option value="marketplace">marketplace v{displayManifest.version ?? "?"}</option>
+                              <option value="local">local .sinxt v{record.localSinxtAlt!.manifest.version ?? "?"}</option>
+                            </select>
+                          </Show>
+                        }
+                      >
+                        <span class="ext-active-badge">v{displayManifest.version ?? "?"}</span>
+                        <span class="ext-installed-badge--override">⚠ overridden by dev</span>
+                      </Show>
+                      <div class="ext-installed-card-actions">
+                        <Show when={!isDevOverridden}>
+                          <button
+                            class={`ext-installed-toggle${enabled() ? " ext-installed-toggle--on" : ""}`}
+                            onClick={toggleEnabled}
+                            title={enabled() ? "Disable extension" : "Enable extension"}
+                          >
+                            {enabled() ? "Enabled" : "Disabled"}
+                          </button>
+                        </Show>
+                        <Show when={isDevOverridden}
+                          fallback={
+                            <button
+                              class="settings-btn-secondary"
+                              style="font-size:11px;padding:2px 8px;"
+                              onClick={async () => {
+                                deregisterExtDecorations(record.id);
+                                for (const wp of record.manifest.contributes?.webviewPanels ?? []) unregisterToolWindow(wp.id);
+                                for (const tv of record.manifest.contributes?.treeViews ?? []) unregisterToolWindow(tv.id);
+                                removeExtensionLogs(record.id);
+                                uninstallExtension(record.id);
+                                if (isTauri()) {
+                                  const { invoke } = await import("@tauri-apps/api/core");
+                                  await invoke("ext_deactivate", { extId: record.id }).catch(() => {});
+                                }
+                              }}
+                            >
+                              Uninstall
+                            </button>
+                          }
+                        >
+                          <span class="ext-installed-dev-note">Manage in Dev tab</span>
+                        </Show>
+                      </div>
+                    </div>
+                    <Show when={displayManifest.description}>
+                      <p class="ext-installed-card-desc">{displayManifest.description}</p>
+                    </Show>
+                  </div>
+                );
+              }}
+            </For>
+          </div>
         </Show>
 
         <Show when={localExts().length === 0 && marketplaceExts().length === 0}>

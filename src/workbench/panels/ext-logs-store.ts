@@ -50,7 +50,12 @@ export function requestChannelShow(extId: string, channelId: string): void {
 
 /** Called from activation.tsx when a manifest is read — registers the extension and its implicit Console channel. */
 export function registerExtension(id: string, name: string, categories: string[]): void {
-  if (_store[id]) return;
+  if (_store[id]) {
+    // Entry may have been pre-created by appendLine() with id as name; upgrade to real metadata.
+    _setStore(id, "name", name);
+    _setStore(id, "categories", categories);
+    return;
+  }
   _setStore(id, {
     id,
     name,

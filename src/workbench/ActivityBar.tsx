@@ -40,10 +40,12 @@ const DOCK_LABELS: Partial<Record<DockId, string>> = {
 // ---------------------------------------------------------------------------
 type ListItem =
   | { kind: "icon"; id: string }
-  | { kind: "placeholder" };
+  | { kind: "placeholder" }
+  | { kind: "spacer" };
 
 const _iconCache = new Map<string, { kind: "icon"; id: string }>();
 const _placeholder: ListItem = { kind: "placeholder" };
+const _spacer: ListItem = { kind: "spacer" };
 
 function iconItem(id: string): { kind: "icon"; id: string } {
   let item = _iconCache.get(id);
@@ -155,27 +157,26 @@ export function ActivityBar(props: Props) {
 
     if (!dId) return tools.map((t) => iconItem(t.id));
 
-    // Base list without the dragged icon
-    const base = tools.filter((t) => t.id !== dId).map((t) => t.id);
+    const sourceInThisZone = !!tools.find((t) => t.id === dId);
     const inThisZone = d?.dock === targetDock || (d?.isNewZone && targetDock === bottomDock());
 
     if (!inThisZone) {
-      // This zone is not the drop target — show all icons except dragged (it's hidden in its source zone)
-      const result: ListItem[] = base.map(iconItem);
-      // Re-append dragged icon at end (collapsed via CSS) only if it belongs to this zone
-      if (tools.find((t) => t.id === dId)) result.push(iconItem(dId));
-      return result;
+      if (sourceInThisZone) {
+        // Source zone but not drop target — replace the dragged icon with a same-size
+        // spacer so the zone height doesn't change and the divider doesn't shift.
+        return tools.map((t) => (t.id === dId ? _spacer : iconItem(t.id)));
+      }
+      return tools.map((t) => iconItem(t.id));
     }
 
-    // Insert placeholder at the computed position
+    // Drop target zone — insert placeholder at the computed position, no source icon.
+    const base = tools.filter((t) => t.id !== dId).map((t) => t.id);
     const insertIdx = d!.afterId !== null ? base.indexOf(d!.afterId) + 1 : 0;
     const result: ListItem[] = [];
     for (let i = 0; i <= base.length; i++) {
       if (i === Math.max(0, insertIdx)) result.push(_placeholder);
       if (i < base.length) result.push(iconItem(base[i]));
     }
-    // Collapsed dragged icon at end (if it lives in this zone)
-    if (tools.find((t) => t.id === dId)) result.push(iconItem(dId));
     return result;
   }
 
@@ -312,10 +313,12 @@ export function ActivityBar(props: Props) {
           {(item) =>
             item.kind === "placeholder"
               ? <div class="activity-placeholder" />
+              : item.kind === "spacer"
+              ? <div class="activity-spacer-slot" />
               : (
                 <button
                   ref={(el) => iconRefs.set(item.id, el)}
-                  class={`activity-icon${isActive(item.id) ? " active" : ""}${draggingId() === item.id ? " icon-dragging" : ""}`}
+                  class={`activity-icon${isActive(item.id) ? " active" : ""}`}
                   title={layout.registry[item.id]?.title ?? ""}
                   onClick={() => toggleToolWindow(item.id)}
                   onContextMenu={(e) => iconContextMenu(e, item.id)}
@@ -335,10 +338,12 @@ export function ActivityBar(props: Props) {
             {(item) =>
               item.kind === "placeholder"
                 ? <div class="activity-placeholder" />
+                : item.kind === "spacer"
+                ? <div class="activity-spacer-slot" />
                 : (
                   <button
                     ref={(el) => iconRefs.set(item.id, el)}
-                    class={`activity-icon${isActive(item.id) ? " active" : ""}${draggingId() === item.id ? " icon-dragging" : ""}`}
+                    class={`activity-icon${isActive(item.id) ? " active" : ""}`}
                     title={layout.registry[item.id]?.title ?? ""}
                     onClick={() => toggleToolWindow(item.id)}
                     onContextMenu={(e) => iconContextMenu(e, item.id)}
