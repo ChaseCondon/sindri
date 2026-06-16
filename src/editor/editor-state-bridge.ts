@@ -419,16 +419,28 @@ function _removeDecorationProvider(providerId: string): void {
  * and register their `onDidChangeActiveEditor` handlers. Calling this after
  * all extensions have activated ensures they receive the initial editor state
  * without needing the user to switch tabs.
+ *
+ * `registry.buffers` is populated when the editor component mounts, which can
+ * happen AFTER this is called (module-level startup). We retry until the buffer
+ * is available, up to ~10 seconds.
  */
 export function rebroadcastActiveEditor(): void {
   const activeGroup = groupStore.activeGroup;
   const group = groupStore.groups[activeGroup];
   const bufferId = group?.activeBufferId ?? "";
   if (!bufferId) return;
-  const info = buildEditorInfo(bufferId);
-  if (info) {
-    fireAndForget(dispatch("__sindri.editor.activeEditorChanged", JSON.stringify(info)));
+
+  let attempts = 0;
+  function tryBroadcast() {
+    attempts++;
+    const info = buildEditorInfo(bufferId);
+    if (info) {
+      fireAndForget(dispatch("__sindri.editor.activeEditorChanged", JSON.stringify(info)));
+    } else if (attempts < 20) {
+      setTimeout(tryBroadcast, 500);
+    }
   }
+  tryBroadcast();
 }
 
 /** Remove all decoration providers registered by an extension and clear their decorations immediately. */

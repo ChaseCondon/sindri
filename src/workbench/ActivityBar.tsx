@@ -185,19 +185,21 @@ export function ActivityBar(props: Props) {
   function handleDragStart(e: PointerEvent, id: string) {
     if (e.button !== 0) return;
     e.preventDefault();
-    const el = e.currentTarget as HTMLButtonElement;
-    el.setPointerCapture(e.pointerId);
+
+    // CRITICAL: capture on barRef, NOT on the button element.
+    // When setDraggingId fires, SolidJS removes the source button from the DOM.
+    // If capture is on the button, the pointer events stop routing immediately.
+    // barRef stays in the DOM throughout the entire drag.
+    barRef.setPointerCapture(e.pointerId);
 
     const startY = e.clientY;
     let dragging = false;
-    // Snapshot whether the bottom zone was empty (excluding source) at drag-start.
-    // Used to decide if we need to size the new zone on drop.
     const wasBtmEmpty = sideBottomTools().filter((t) => t.id !== id).length === 0;
 
     function cleanup() {
-      el.removeEventListener("pointermove", onMove);
-      el.removeEventListener("pointerup", onUp);
-      el.removeEventListener("pointercancel", onCancel);
+      barRef.removeEventListener("pointermove", onMove);
+      barRef.removeEventListener("pointerup", onUp);
+      barRef.removeEventListener("pointercancel", onCancel);
       if (ghostEl) { ghostEl.remove(); ghostEl = null; }
       setDraggingId(null);
       setDropTarget(null);
@@ -207,22 +209,14 @@ export function ActivityBar(props: Props) {
       if (!dragging && Math.abs(ev.clientY - startY) > 5) {
         dragging = true;
 
-        // Snapshot positions NOW — before `setDraggingId` triggers the list
-        // rebuild that removes the source and shifts other icons.
+        // 1. Snapshot rects while button is still in the DOM.
         cachedRects.clear();
         for (const [iconId, iconEl] of iconRefs) {
           cachedRects.set(iconId, iconEl.getBoundingClientRect());
         }
         cachedDividerTop = dividerRef?.getBoundingClientRect()?.top ?? Infinity;
 
-        // Compute the initial drop target before committing to any state changes.
-        const initialDt = computeDropTarget(ev.clientY, id);
-
-        // Now update signals (triggers list rebuild).
-        setDraggingId(id);
-        setDropTarget(initialDt);
-
-        // Clone the icon (at its pre-removal size/position) for the ghost.
+        // 2. Create ghost from live button BEFORE setDraggingId removes it.
         const r = cachedRects.get(id);
         const srcEl = iconRefs.get(id);
         if (srcEl && r) {
@@ -238,11 +232,16 @@ export function ActivityBar(props: Props) {
           });
           document.body.appendChild(ghostEl);
         }
+
+        // 3. Compute drop target using cached rects, then commit signals.
+        //    setDraggingId removes the source from the render list — that's fine
+        //    because barRef still has pointer capture and receives all events.
+        setDraggingId(id);
+        setDropTarget(computeDropTarget(ev.clientY, id));
       }
 
       if (dragging) {
         if (ghostEl) ghostEl.style.top = `${ev.clientY - parseFloat(ghostEl.style.height) / 2}px`;
-        // Uses cachedRects — no live DOM reads, no feedback loop.
         setDropTarget(computeDropTarget(ev.clientY, id));
       }
     }
@@ -262,9 +261,9 @@ export function ActivityBar(props: Props) {
 
     function onCancel() { cleanup(); }
 
-    el.addEventListener("pointermove", onMove);
-    el.addEventListener("pointerup", onUp);
-    el.addEventListener("pointercancel", onCancel);
+    barRef.addEventListener("pointermove", onMove);
+    barRef.addEventListener("pointerup", onUp);
+    barRef.addEventListener("pointercancel", onCancel);
   }
 
   return (
