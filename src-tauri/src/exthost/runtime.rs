@@ -411,6 +411,7 @@ globalThis.sindri = {
         createStatusBarItem(id, options) {
             const text = (options && options.text) ? String(options.text) : '';
             const tooltip = (options && options.tooltip) ? String(options.tooltip) : '';
+            const popupPanelId = (options && options.popupPanelId) ? String(options.popupPanelId) : null;
             const item = {
                 _text: text,
                 _tooltip: tooltip,
@@ -439,7 +440,7 @@ globalThis.sindri = {
                 }
             };
             __sindri_status_items.set(id, item);
-            sindri.events.emit("__sindri.ui.statusBarItemCreated", JSON.stringify({id, text, tooltip}));
+            sindri.events.emit("__sindri.ui.statusBarItemCreated", JSON.stringify({id, text, tooltip, ...(popupPanelId ? {popupPanelId} : {})}));
             return item;
         },
         // title/icon/defaultDock come from contributes.treeViews in the manifest (ADR-0026).

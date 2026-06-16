@@ -109,7 +109,7 @@ declare interface TreeItem {
   contextValue?: string;
 }
 
-declare type DockId = "left-top" | "left-bottom" | "right-top" | "right-bottom" | "top" | "bottom";
+declare type DockId = "left-top" | "left-bottom" | "right-top" | "right-bottom" | "top" | "bottom" | "popup";
 
 declare interface WebviewContext {
   postMessage(msg: unknown): void;
@@ -126,7 +126,7 @@ declare interface WebviewPanel {
 }
 
 declare interface SindriUi {
-  createStatusBarItem(id: string, options?: { text?: string; tooltip?: string }): StatusBarItem;
+  createStatusBarItem(id: string, options?: { text?: string; tooltip?: string; popupPanelId?: string }): StatusBarItem;
   registerTreeView(id: string, options: { treeDataProvider: TreeViewProvider }): Disposable;
   showQuickPick(items: QuickPickItem[], options?: QuickPickOptions): Promise<QuickPickItem | undefined>;
   createQuickPick<T extends QuickPickItem = QuickPickItem>(): QuickPick<T>;

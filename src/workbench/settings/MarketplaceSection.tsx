@@ -6,6 +6,7 @@ import { getRegistryClient, rawFileUrl, resolveIconThemeDef, resolveUiIconPackDe
 import { activateExtensionFromSinxt, activateExtensionWithManifest } from "../../extensions/activation";
 import { checkUpdatesOnly } from "../../extensions/update-checker";
 import { registerTheme, unregisterTheme, registerIconTheme, unregisterIconTheme, registerUiIconPack, unregisterUiIconPack, getThemeDef, setUiTheme, setIconTheme, setUiPack } from "../../theme/registry";
+import { unregisterToolWindow } from "../layout";
 import type { ThemeDef } from "../../theme/tokens";
 import {
   registryRepos, installedIds, installedExtensions, installExtension, uninstallExtension,
@@ -291,6 +292,8 @@ function doUninstall(entry: MarketplaceEntry): void {
   for (const theme of contributes?.themes ?? []) unregisterTheme(theme.id);
   for (const iconTheme of contributes?.iconThemes ?? []) unregisterIconTheme(iconTheme.id);
   for (const uiPack of contributes?.uiIconPacks ?? []) unregisterUiIconPack(uiPack.id);
+  for (const wp of contributes?.webviewPanels ?? []) unregisterToolWindow(wp.id);
+  for (const tv of contributes?.treeViews ?? []) unregisterToolWindow(tv.id);
   uninstallExtension(id);
   if (isTauri()) invoke("ext_deactivate", { extId: id }).catch(() => {});
 }
@@ -897,6 +900,8 @@ export function MarketplaceSection() {
                         for (const theme of record.manifest.contributes?.themes ?? []) unregisterTheme(theme.id);
                         for (const iconTheme of record.manifest.contributes?.iconThemes ?? []) unregisterIconTheme(iconTheme.id);
                         for (const uiPack of record.manifest.contributes?.uiIconPacks ?? []) unregisterUiIconPack(uiPack.id);
+                        for (const wp of record.manifest.contributes?.webviewPanels ?? []) unregisterToolWindow(wp.id);
+                        for (const tv of record.manifest.contributes?.treeViews ?? []) unregisterToolWindow(tv.id);
                         uninstallExtension(record.id);
                         if (isTauri()) invoke("ext_deactivate", { extId: record.id }).catch(() => {});
                       }}

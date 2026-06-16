@@ -1,5 +1,5 @@
 import { Show, createEffect, type JSX } from "solid-js";
-import { layout, isDockOpen, setDockSize } from "./layout";
+import { layout, isDockOpen, setDockSize, hasWindowsForSide } from "./layout";
 import { ActivityBar } from "./ActivityBar";
 import { DockBar } from "./DockBar";
 import { Splitter } from "./Splitter";
@@ -43,7 +43,9 @@ export function Workbench(props: Props) {
     <div class="workbench-shell">
       {/* workbench-frame: activity bars span the full height including the bottom dock */}
       <div class="workbench-frame">
-        <ActivityBar side="left" />
+        <Show when={hasWindowsForSide("left")}>
+          <ActivityBar side="left" />
+        </Show>
 
         <div class="workbench-content">
           <div class="workbench-main">
@@ -89,7 +91,9 @@ export function Workbench(props: Props) {
           </Show>
         </div>
 
-        <ActivityBar side="right" />
+        <Show when={hasWindowsForSide("right")}>
+          <ActivityBar side="right" />
+        </Show>
       </div>
 
       <ContextMenu />

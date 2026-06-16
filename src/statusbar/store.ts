@@ -5,14 +5,16 @@ export interface StatusBarItem {
   text: string;
   tooltip: string;
   visible: boolean;
+  /** If set, clicking this item toggles the named tool window as a popup panel. */
+  popupPanelId?: string;
 }
 
 const [statusBarItems, setStatusBarItems] = createStore<Record<string, StatusBarItem>>({});
 export { statusBarItems };
 
-export function registerStatusBarItem(id: string, text: string, tooltip: string): void {
+export function registerStatusBarItem(id: string, text: string, tooltip: string, popupPanelId?: string): void {
   setStatusBarItems(produce((s) => {
-    s[id] = { id, text, tooltip, visible: false };
+    s[id] = { id, text, tooltip, visible: false, popupPanelId };
   }));
 }
 

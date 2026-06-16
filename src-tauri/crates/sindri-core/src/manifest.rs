@@ -225,7 +225,11 @@ pub fn validate(manifest: &serde_json::Value) -> Vec<ValidationIssue> {
 /// strings for missing files. `ext_dir` is the extension's root directory.
 pub fn validate_paths(ext_dir: &Path, manifest: &Manifest) -> Vec<String> {
     let mut missing = Vec::new();
+    // Inline SVG values start with '<' and are not file paths — skip file existence check.
     let mut check = |rel: &str, ctx: &str| {
+        if rel.trim_start().starts_with('<') {
+            return;
+        }
         if !ext_dir.join(rel).exists() {
             missing.push(format!("{rel}  ({ctx})"));
         }

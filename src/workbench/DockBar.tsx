@@ -15,7 +15,7 @@ const ALL_DOCKS: DockId[] = [
   "right-top", "right-bottom",
   "bottom", "top",
 ];
-const DOCK_LABELS: Record<DockId, string> = {
+const DOCK_LABELS: Partial<Record<DockId, string>> = {
   "left-top": "Left sidebar (top)",
   "left-bottom": "Left sidebar (bottom)",
   "right-top": "Right sidebar (top)",

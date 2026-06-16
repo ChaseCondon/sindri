@@ -22,7 +22,9 @@ import { initExtensionActivation } from "./extensions/activation";
 import { checkAndInstallUpdates, checkUpdatesOnly, pendingUpdateCount } from "./extensions/update-checker";
 import { startDevWatcher } from "./extensions/dev-watcher";
 import { statusBarItems } from "./statusbar/store";
+import { toggleToolWindow } from "./workbench/layout";
 import { QuickPickOverlay } from "./quick-pick/QuickPickOverlay";
+import { PopupPanel } from "./workbench/PopupPanel";
 import "./editor/features"; // sets up configStore→decoration-registry subscription (ADR-0024)
 import "./editor/editor-state-bridge"; // sets up sindri.editor webview↔host bridge (ADR-0034)
 import { restoreSession, initSession } from "./editor/session";
@@ -271,11 +273,16 @@ export function App() {
         <div class="statusbar-ext-items">
           <For each={Object.values(statusBarItems).filter((item) => item.visible)}>
             {(item) => (
-              <span class="statusbar-item" title={item.tooltip}>{item.text}</span>
+              <span
+                class={`statusbar-item${item.popupPanelId ? " statusbar-item-clickable" : ""}`}
+                title={item.tooltip}
+                onClick={item.popupPanelId ? () => toggleToolWindow(item.popupPanelId!) : undefined}
+              >{item.text}</span>
             )}
           </For>
         </div>
       </footer>
+      <PopupPanel />
       <Show when={settingsOpen()}>
         <SettingsModal onClose={() => setSettingsOpen(false)} />
       </Show>

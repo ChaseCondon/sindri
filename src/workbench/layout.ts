@@ -4,12 +4,14 @@ import type { Component } from "solid-js";
 export type DockId =
   | "left-top" | "left-bottom"
   | "right-top" | "right-bottom"
-  | "top" | "bottom";
+  | "top" | "bottom"
+  | "popup"; // Rendered as a fixed-position overlay above the status bar; no activity-bar icon.
 
 export function dockRail(id: DockId): "left" | "right" | "top" | "bottom" {
   if (id === "left-top" || id === "left-bottom") return "left";
   if (id === "right-top" || id === "right-bottom") return "right";
-  return id;
+  if (id === "popup") return "bottom"; // popup has no rail; treated like bottom for resize math
+  return id as "top" | "bottom";
 }
 
 /** "bottom" for the lower zone inside a left/right rail; "top" for everything else */
@@ -133,8 +135,14 @@ export function openToolWindow(id: string): void {
   setLayout(
     produce((s) => {
       if (!s.windows[id]) return;
+      const dock = s.windows[id].dock;
+      // Exclusive single-open per dock: close others so clicking through the
+      // activity bar switches panels rather than accumulating open ones.
+      for (const [wid, w] of Object.entries(s.windows)) {
+        if (wid !== id && w.dock === dock) s.windows[wid].open = false;
+      }
       s.windows[id].open = true;
-      s.activeTabs[s.windows[id].dock] = id;
+      s.activeTabs[dock] = id;
     })
   );
   persistLayout(layout);
@@ -279,4 +287,36 @@ export function showToolWindow(id: string): void {
 /** True when at least one window in the dock is open. */
 export function isDockOpen(dock: DockId): boolean {
   return Object.values(layout.windows).some((w) => w.dock === dock && w.open && !w.hidden);
+}
+
+/** True when at least one window is registered (not hidden) for a given sidebar side.
+ *  Used to conditionally render the ActivityBar — it shows as long as any panel can
+ *  be reopened from it, but hides after all panels for that side are unregistered. */
+export function hasWindowsForSide(side: "left" | "right"): boolean {
+  const top = `${side}-top` as DockId;
+  const btm = `${side}-bottom` as DockId;
+  return Object.keys(layout.registry).some((id) => {
+    const dock = layout.windows[id]?.dock;
+    return (dock === top || dock === btm) && !layout.windows[id]?.hidden;
+  });
+}
+
+/** Remove a tool window entirely from the registry and layout.
+ *  Call this when uninstalling an extension — it ensures the panel vanishes from the
+ *  activity bar and the dock rail, and won't be re-hydrated from persisted layout on
+ *  next launch. */
+export function unregisterToolWindow(id: string): void {
+  setLayout(produce((s) => {
+    if (!s.registry[id]) return;
+    const dock = s.windows[id]?.dock;
+    delete s.registry[id];
+    delete s.windows[id];
+    if (dock && s.activeTabs[dock] === id) {
+      const next = Object.entries(s.windows).find(
+        ([wid, w]) => wid !== id && w.dock === dock && w.open && !w.hidden
+      );
+      s.activeTabs[dock] = next ? next[0] : undefined;
+    }
+  }));
+  persistLayout(layout);
 }

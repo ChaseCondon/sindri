@@ -1,6 +1,6 @@
 // Registry client seam — ADR-0020 §5
 // Mirrors getCoreClient() / CoreClient pattern from src/lib/tauri.ts (ADR-0017).
-// TauriRegistryClient  — two-stage .sinxt download: GitHub Release asset → committed raw file
+// TauriRegistryClient  — fetches .sinxt from committed raw file (raw.githubusercontent.com)
 // BrowserRegistryClient — no-op (cannot write to app_data_dir from the browser)
 import { invoke } from "@tauri-apps/api/core";
 import { isTauri } from "../lib/tauri";
@@ -98,14 +98,8 @@ class TauriRegistryClient implements RegistryClient {
     const { id } = entry.manifest;
     const assetName = `${id}-${version}.sinxt`;
 
-    // Stage 1: GitHub Release asset for tag `{id}-v{version}`
-    const releaseUrl = toReleaseAssetUrl(repoUrl, `${id}-v${version}`, assetName);
-    if (releaseUrl) {
-      const bytes = await fetchBytes(releaseUrl);
-      if (bytes) return installSinxtBytes(id, version, bytes);
-    }
-
-    // Stage 2: committed artifact at dist/<id>-<version>.sinxt in the registry repo
+    // GitHub Release asset URLs always fail with CORS in Tauri WebView (redirect to
+    // release-assets.githubusercontent.com is blocked). Use the committed raw artifact directly.
     const rawUrl = rawFileUrl(repoUrl, entry.folderPath, `dist/${assetName}`);
     if (rawUrl) {
       const bytes = await fetchBytes(rawUrl);
@@ -240,16 +234,7 @@ async function enrichLeanIndex(lean: RegistryLeanIndex, repoUrl: string): Promis
 // Download helpers (used by TauriRegistryClient.downloadExtension)
 // ---------------------------------------------------------------------------
 
-// Build the GitHub Release asset download URL for a given tag and asset filename.
-// Returns null for non-GitHub repos (handled by the raw-file fallback).
-function toReleaseAssetUrl(repoUrl: string, tag: string, assetName: string): string | null {
-  const gh = repoUrl.match(/^https?:\/\/github\.com\/([^/]+\/[^/]+?)(\.git)?$/);
-  if (!gh) return null;
-  return `https://github.com/${gh[1]}/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(assetName)}`;
-}
-
 // Fetch a URL and return its bytes, or null on any network/HTTP error.
-// Uses an 8-second timeout to avoid hanging on CORS-redirected GitHub Release URLs.
 async function fetchBytes(url: string): Promise<Uint8Array | null> {
   try {
     const controller = new AbortController();

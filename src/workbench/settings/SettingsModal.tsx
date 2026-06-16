@@ -21,6 +21,7 @@ import {
 } from "./store";
 import { activateExtensionFromSinxt, activateExtensionWithManifest } from "../../extensions/activation";
 import { deregisterExtDecorations } from "../../editor/editor-state-bridge";
+import { unregisterToolWindow } from "../../workbench/layout";
 import type { ExtensionManifest } from "../../extensions/manifest";
 import { isTauri } from "../../lib/tauri";
 import { get as cfgGet, set as cfgSet, EDITOR_DECORATIONS_SCHEMA } from "./configStore";
@@ -743,6 +744,8 @@ function ActiveExtensionSection() {
                   class="settings-btn-secondary ext-active-uninstall"
                   onClick={async () => {
                     deregisterExtDecorations(record.id);
+                    for (const wp of record.manifest.contributes?.webviewPanels ?? []) unregisterToolWindow(wp.id);
+                    for (const tv of record.manifest.contributes?.treeViews ?? []) unregisterToolWindow(tv.id);
                     uninstallExtension(record.id);
                     if (isTauri()) {
                       const { invoke } = await import("@tauri-apps/api/core");
@@ -807,6 +810,8 @@ function ActiveExtensionSection() {
                     class="settings-btn-secondary ext-active-uninstall"
                     onClick={async () => {
                       deregisterExtDecorations(record.id);
+                      for (const wp of record.manifest.contributes?.webviewPanels ?? []) unregisterToolWindow(wp.id);
+                      for (const tv of record.manifest.contributes?.treeViews ?? []) unregisterToolWindow(tv.id);
                       uninstallExtension(record.id);
                       if (isTauri()) {
                         const { invoke } = await import("@tauri-apps/api/core");

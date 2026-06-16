@@ -247,8 +247,8 @@ export function initExtensionActivation(): void {
   listenExtEvent("__sindri.ui.treeViewRegistered", handleTreeViewRegistered);
   listenExtEvent("__sindri.ui.webviewPanelRegistered", handleWebviewPanelRegistered);
   listenExtEvent("__sindri.ui.statusBarItemCreated", (payload) => {
-    const { id, text, tooltip } = JSON.parse(payload) as { id: string; text: string; tooltip: string };
-    registerStatusBarItem(id, text ?? "", tooltip ?? "");
+    const { id, text, tooltip, popupPanelId } = JSON.parse(payload) as { id: string; text: string; tooltip: string; popupPanelId?: string };
+    registerStatusBarItem(id, text ?? "", tooltip ?? "", popupPanelId);
   });
   listenExtEvent("__sindri.ui.statusBarItemUpdated", (payload) => {
     const { id, ...patch } = JSON.parse(payload) as { id: string; text?: string; tooltip?: string; visible?: boolean };

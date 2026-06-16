@@ -886,6 +886,7 @@ pub fn build_index(repo: Option<PathBuf>, json: bool) -> Result<i32> {
 
     let mut entries: Vec<IndexEntry> = all
         .iter()
+        .filter(|e| e.manifest.available != Some(false) && e.manifest.buildable != Some(false))
         .map(|e| IndexEntry {
             id: e.manifest.id.clone(),
             path: e.rel_dir.clone(),
