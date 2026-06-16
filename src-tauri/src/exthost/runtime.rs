@@ -903,6 +903,8 @@ enum Msg {
     DispatchEvent { id: String, payload: String, reply: Reply<()> },
     TreeViewGetChildren { tree_id: String, element_id: Option<String>, reply: Reply<String> },
     ProvideDecorations { provider_id: String, ctx_json: String, reply: Reply<String> },
+    /// Graceful shutdown: call JS deactivate() + dispose all subscriptions, then reply.
+    Deactivate(Reply<()>),
     /// ADR-0037: a CDP client attached; inject the session into V8 and enter debug mode.
     InspectorConnect { proxy: InspectorSessionProxy },
     /// ADR-0037: user requested debug shutdown — exit debug mode and close all inspector sessions.
@@ -967,6 +969,14 @@ impl ExtensionRuntime {
     /// No-op if not in debug mode or channel is closed.
     pub fn stop_debug(&self) {
         let _ = self.tx.send(Msg::StopDebug);
+    }
+
+    /// Graceful shutdown: calls JS `deactivate()` and disposes all `context.subscriptions`,
+    /// triggering cleanup events (statusBarItemDisposed, etc.) before the runtime is dropped.
+    pub async fn deactivate_gracefully(&self) -> Result<(), ExthostError> {
+        let (tx, rx) = oneshot::channel();
+        self.tx.send(Msg::Deactivate(tx)).map_err(|_| ExthostError::RuntimeGone)?;
+        rx.await.map_err(|_| ExthostError::RuntimeGone)?
     }
 
     /// M0 smoke test: verify console capture and basic JS eval.
@@ -1171,12 +1181,41 @@ async fn dispatch_msg(rt: &mut JsRuntime, msg: Msg, source_maps: &mut SourceMaps
                 do_provide_decorations(rt, &provider_id, &ctx_json, source_maps).await
             );
         }
+        Msg::Deactivate(reply) => {
+            let _ = reply.send(do_deactivate(rt, source_maps).await);
+        }
         Msg::InspectorConnect { .. } => {} // only reached when inspector_enabled=false
         Msg::StopDebug => {}               // only reached when inspector_enabled=false
     }
 }
 
 // ── JS operations ─────────────────────────────────────────────────────────────
+
+/// Call `deactivate()` on the extension (if exported) and dispose all `context.subscriptions`.
+/// This triggers cleanup events (statusBarItemDisposed, webviewPanelDisposed, etc.) so the
+/// frontend can remove stale UI state before the runtime is dropped.
+async fn do_deactivate(rt: &mut JsRuntime, source_maps: &mut SourceMaps) -> Result<(), ExthostError> {
+    rt.execute_script(
+        "<deactivate>",
+        r#"
+        (async () => {
+            try {
+                if (typeof sindri_ext !== 'undefined' && typeof sindri_ext.deactivate === 'function') {
+                    await sindri_ext.deactivate();
+                }
+            } catch (_) {}
+            // Dispose all context subscriptions (status bar items, panels, timers, etc.)
+            const subs = globalThis.__sindri_context_subscriptions ?? [];
+            for (const sub of subs) {
+                try { sub.dispose(); } catch (_) {}
+            }
+        })();
+        "#,
+    ).map_err(|e| ExthostError::Js(translate_stack(&e.to_string(), source_maps)))?;
+    rt.run_event_loop(Default::default()).await
+        .map_err(|e| ExthostError::Js(translate_stack(&e.to_string(), source_maps)))?;
+    Ok(())
+}
 
 async fn do_eval_test(rt: &mut JsRuntime) -> Result<Vec<String>, ExthostError> {
     // Temporarily replace console to capture output, then restore.
@@ -1281,14 +1320,15 @@ async fn do_load_and_activate(
     rt.execute_script(script_url, source)
         .map_err(|e| ExthostError::Js(translate_stack(&e.to_string(), source_maps)))?;
 
+    // Store context subscriptions in a global so do_deactivate can dispose them.
     // Call activate; wrap in async IIFE so both sync and async activate work uniformly.
-    // Capture stack (not just message) so source map translation applies to activate errors.
     rt.execute_script(
         "<activate>",
         r#"
         (async () => {
             try {
-                await sindri_ext.activate({ subscriptions: [] });
+                globalThis.__sindri_context_subscriptions = [];
+                await sindri_ext.activate({ subscriptions: globalThis.__sindri_context_subscriptions });
                 globalThis.__activate_err = null;
             } catch (e) {
                 globalThis.__activate_err = e.stack ?? String(e.message ?? e);

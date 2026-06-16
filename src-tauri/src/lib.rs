@@ -801,8 +801,16 @@ async fn ext_stop_debugger(host: State<'_, ExtHost>, ext_id: String) -> Result<(
 
 /// Deactivate (unload) a running extension by id. Drops the V8 isolate thread.
 /// Called by the frontend when uninstalling an extension.
+/// Gracefully shuts down the JS runtime (calls deactivate() + disposes subscriptions)
+/// before dropping the isolate, so cleanup events fire on the frontend.
 #[tauri::command]
 async fn ext_deactivate(host: State<'_, ExtHost>, ext_id: String) -> Result<(), String> {
+    // Clone the Arc so we can await outside the mutex.
+    let rt = host.get_runtime(&ext_id);
+    if let Some(rt) = rt {
+        // Best-effort: ignore errors (runtime may already be gone).
+        let _ = rt.deactivate_gracefully().await;
+    }
     host.deactivate(&ext_id);
     Ok(())
 }

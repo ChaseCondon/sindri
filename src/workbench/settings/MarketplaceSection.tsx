@@ -7,6 +7,7 @@ import { activateExtensionFromSinxt, activateExtensionWithManifest } from "../..
 import { checkUpdatesOnly } from "../../extensions/update-checker";
 import { registerTheme, unregisterTheme, registerIconTheme, unregisterIconTheme, registerUiIconPack, unregisterUiIconPack, getThemeDef, setUiTheme, setIconTheme, setUiPack } from "../../theme/registry";
 import { unregisterToolWindow } from "../layout";
+import { removeExtensionLogs } from "../panels/ext-logs-store";
 import type { ThemeDef } from "../../theme/tokens";
 import {
   registryRepos, installedIds, installedExtensions, installExtension, uninstallExtension,
@@ -284,6 +285,7 @@ function doUninstall(entry: MarketplaceEntry): void {
       const memberEntry = _allEntries.find((e) => e.item.manifest.id === memberId);
       if (memberEntry) doUninstall(memberEntry);
     }
+    removeExtensionLogs(id);
     uninstallExtension(id);
     if (isTauri()) invoke("ext_deactivate", { extId: id }).catch(() => {});
     return;
@@ -294,6 +296,7 @@ function doUninstall(entry: MarketplaceEntry): void {
   for (const uiPack of contributes?.uiIconPacks ?? []) unregisterUiIconPack(uiPack.id);
   for (const wp of contributes?.webviewPanels ?? []) unregisterToolWindow(wp.id);
   for (const tv of contributes?.treeViews ?? []) unregisterToolWindow(tv.id);
+  removeExtensionLogs(id);
   uninstallExtension(id);
   if (isTauri()) invoke("ext_deactivate", { extId: id }).catch(() => {});
 }
@@ -902,6 +905,7 @@ export function MarketplaceSection() {
                         for (const uiPack of record.manifest.contributes?.uiIconPacks ?? []) unregisterUiIconPack(uiPack.id);
                         for (const wp of record.manifest.contributes?.webviewPanels ?? []) unregisterToolWindow(wp.id);
                         for (const tv of record.manifest.contributes?.treeViews ?? []) unregisterToolWindow(tv.id);
+                        removeExtensionLogs(record.id);
                         uninstallExtension(record.id);
                         if (isTauri()) invoke("ext_deactivate", { extId: record.id }).catch(() => {});
                       }}

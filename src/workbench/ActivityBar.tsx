@@ -216,7 +216,16 @@ export function ActivityBar(props: Props) {
     }
 
     // ── Top zone ──
+    // If topList is empty (only the dragged icon was in the top zone), check whether
+    // the pointer is below the dragged icon itself so we can still create a new bottom zone.
     if (topList.length === 0) {
+      if (btmList.length === 0) {
+        // Only icon in the whole bar — check if below its midpoint to create a bottom zone.
+        const draggedEl = iconRefs.get(dId)?.getBoundingClientRect();
+        if (draggedEl && clientY > draggedEl.bottom + 4) {
+          return { dock: bottomDock(), afterId: null, isNewZone: true };
+        }
+      }
       return { dock: topDock(), afterId: null, isNewZone: false };
     }
 

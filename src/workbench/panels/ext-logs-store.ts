@@ -132,6 +132,12 @@ export function removeChannel(extId: string, channelId: string): void {
   );
 }
 
+/** Remove the entire extension entry from the logs panel (called on uninstall). */
+export function removeExtensionLogs(extId: string): void {
+  if (!_store[extId]) return;
+  _setStore(produce((s) => { delete s[extId]; }));
+}
+
 /** Reset unread count for a channel (called when the user selects it). */
 export function markRead(extId: string, channelId: string): void {
   _setStore(extId, "channels", channelId, "unread", 0);

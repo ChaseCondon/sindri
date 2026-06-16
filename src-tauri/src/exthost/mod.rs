@@ -112,6 +112,12 @@ impl ExtHost {
     /// Deactivate and unload an extension by id. Drops the runtime (which closes the
     /// mpsc sender and causes the JS thread to exit). Also removes the debug target.
     /// Returns false if the extension was not loaded.
+    /// Return a cloned Arc for the named runtime (if loaded). Used to call async methods
+    /// outside the lock (e.g. `deactivate_gracefully` before dropping the runtime).
+    pub fn get_runtime(&self, ext_id: &str) -> Option<Arc<crate::exthost::runtime::ExtensionRuntime>> {
+        self.runtimes.lock().unwrap().get(ext_id).cloned()
+    }
+
     pub fn deactivate(&self, ext_id: &str) -> bool {
         let removed = self.runtimes.lock().unwrap().remove(ext_id).is_some();
         self.debug_targets.lock().unwrap().remove(ext_id);

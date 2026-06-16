@@ -122,6 +122,14 @@ export function registerToolWindow(def: ToolWindowDef): void {
         const inDock = Object.values(s.windows).filter((w) => w.dock === def.defaultDock);
         const maxOrder = inDock.reduce((m, w) => Math.max(m, w.order ?? -1), -1);
         s.windows[def.id] = { dock: def.defaultDock, open: false, floating: false, order: maxOrder + 1 };
+      } else {
+        // Panel was previously registered. Clear stale hidden flag so it becomes
+        // visible in the activity bar again after reinstall.
+        s.windows[def.id].hidden = false;
+        // If the stored dock is somehow missing/invalid, reset to the declared default.
+        if (!s.windows[def.id].dock) {
+          s.windows[def.id].dock = def.defaultDock;
+        }
       }
       if (!s.activeTabs[def.defaultDock]) {
         s.activeTabs[def.defaultDock] = def.id;
