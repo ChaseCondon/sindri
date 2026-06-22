@@ -206,7 +206,12 @@ export function App() {
       const opened = await openFile();
       if (opened) {
         if (opened.path) {
-          openOrActivatePathInActiveGroup(opened.path, opened.name, opened.contents);
+          const customEditor = matchDefaultCustomEditor(opened.path);
+          if (customEditor) {
+            openCustomEditorInActiveGroup(opened.path, opened.name, customEditor.viewType);
+          } else {
+            openOrActivatePathInActiveGroup(opened.path, opened.name, opened.contents);
+          }
         } else {
           openLooseInActiveGroup(opened.name, opened.contents);
         }

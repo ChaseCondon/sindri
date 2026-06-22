@@ -220,6 +220,7 @@ export async function activateExtensionFromSinxt(
     contributes?: {
       treeViews?: TreeViewContrib[];
       webviewPanels?: WebviewPanelContrib[];
+      customEditors?: CustomEditorContrib[];
     };
   },
 ): Promise<void> {
@@ -240,7 +241,7 @@ export async function activateExtensionFromSinxt(
     const wpIcon = wp.icon?.trimStart().startsWith("<") ? wp.icon : ICON_TREE_VIEW;
     registerWebviewPanel(wp.id, wp.title, wpIcon, wp.defaultDock ?? "right-top");
   }
-  for (const ce of (manifest.contributes as { customEditors?: CustomEditorContrib[] } | undefined)?.customEditors ?? []) {
+  for (const ce of manifest.contributes?.customEditors ?? []) {
     preRegisteredCustomEditors.add(ce.viewType);
     addCustomEditorRegistration({
       viewType: ce.viewType,
@@ -275,6 +276,17 @@ export function preRegisterManifestPanels(manifest: ExtensionManifest): void {
     preRegisteredWebviewPanels.add(wp.id);
     const icon = wp.icon?.trimStart().startsWith("<") ? wp.icon : ICON_TREE_VIEW;
     registerWebviewPanel(wp.id, wp.title, icon, wp.defaultDock ?? "right-top");
+  }
+  for (const ce of manifest.contributes?.customEditors ?? []) {
+    if (preRegisteredCustomEditors.has(ce.viewType)) continue;
+    preRegisteredCustomEditors.add(ce.viewType);
+    addCustomEditorRegistration({
+      viewType: ce.viewType,
+      displayName: ce.displayName ?? ce.viewType,
+      selector: ce.selector ?? [],
+      priority: ce.priority ?? "default",
+      extId: manifest.id ?? "",
+    });
   }
 }
 
