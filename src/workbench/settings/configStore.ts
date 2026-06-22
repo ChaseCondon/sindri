@@ -75,12 +75,169 @@ export const EDITOR_DECORATIONS_SCHEMA: ConfigurationSchema = {
     presentation: "range",
     order: 4,
   },
+  "editor.fontFamily": {
+    type: "string",
+    default: "",
+    groupTitle: "Font",
+    title: "Font family",
+    description: "Monospace font for the editor. Leave empty for the default stack.",
+    order: 5,
+  },
+  "editor.fontLigatures": {
+    type: "boolean",
+    default: true,
+    title: "Font ligatures",
+    description: "Render programming ligatures (e.g. => != ===) if the font provides them.",
+    order: 6,
+  },
 };
 
 // Register at module init so get() works before App mounts.
 registerSchemas("sindri.editor-decorations", {
   navSection: { group: "Appearance", label: "Editor", order: 1 },
   schema: EDITOR_DECORATIONS_SCHEMA,
+});
+
+// ---------------------------------------------------------------------------
+// Built-in schema: sindri.terminal
+// ---------------------------------------------------------------------------
+
+export const TERMINAL_SCHEMA: ConfigurationSchema = {
+  // ── Appearance ────────────────────────────────────────────────────────────
+  // By default the terminal follows the active Sindri UI theme. Opt in to a
+  // separate scheme via terminal.customTheme + terminal.colorScheme.
+  "terminal.customTheme": {
+    type: "boolean",
+    default: false,
+    groupTitle: "Appearance",
+    title: "Use a separate color scheme",
+    description: "Pick a terminal color scheme independent of the app theme.",
+    order: 0,
+  },
+  "terminal.colorScheme": {
+    type: "string",
+    default: "",
+    title: "Color scheme",
+    description: "Installed theme to use for terminal colors.",
+    order: 1,
+  },
+  "terminal.fontSize": {
+    type: "number",
+    default: 13,
+    title: "Font size",
+    description: "Terminal font size in pixels.",
+    minimum: 8,
+    maximum: 32,
+    step: 1,
+    order: 2,
+  },
+  "terminal.fontFamily": {
+    type: "string",
+    default: "monospace",
+    title: "Font family",
+    description: "CSS font-family string. The font must be installed on your system.",
+    order: 2,
+  },
+  "terminal.lineHeight": {
+    type: "number",
+    default: 1.2,
+    title: "Line height",
+    description: "Line height multiplier.",
+    minimum: 1.0,
+    maximum: 2.0,
+    step: 0.05,
+    order: 3,
+  },
+  "terminal.letterSpacing": {
+    type: "number",
+    default: 0,
+    title: "Letter spacing",
+    description: "Extra horizontal spacing between characters, in pixels.",
+    minimum: -2,
+    maximum: 8,
+    step: 0.5,
+    order: 4,
+  },
+  "terminal.fontLigatures": {
+    type: "boolean",
+    default: false,
+    title: "Font ligatures",
+    description: "Render programming ligatures (e.g. => != ===) if the font provides them.",
+    order: 5,
+  },
+  // ── Cursor ────────────────────────────────────────────────────────────────
+  "terminal.cursorStyle": {
+    type: "enum",
+    default: "block",
+    groupTitle: "Cursor",
+    title: "Cursor style",
+    enum: ["block", "bar", "underline"],
+    enumLabels: ["Block", "Bar", "Underline"],
+    presentation: "radio",
+    order: 5,
+  },
+  "terminal.cursorBlink": {
+    type: "boolean",
+    default: true,
+    title: "Cursor blink",
+    description: "Animate the cursor.",
+    order: 6,
+  },
+  // ── Behavior ──────────────────────────────────────────────────────────────
+  "terminal.scrollback": {
+    type: "number",
+    default: 1000,
+    groupTitle: "Behavior",
+    title: "Scrollback lines",
+    description: "Number of lines kept in the scrollback buffer (0 = unlimited).",
+    minimum: 0,
+    maximum: 100000,
+    step: 500,
+    order: 7,
+  },
+  "terminal.shell": {
+    type: "string",
+    default: "",
+    title: "Shell",
+    description: "Path to the shell binary. Leave empty to auto-detect ($SHELL or platform default).",
+    order: 8,
+  },
+  "terminal.cwd": {
+    type: "enum",
+    default: "workspace",
+    title: "Starting directory",
+    description: "Where new terminal sessions open.",
+    enum: ["workspace", "home"],
+    enumLabels: ["Project folder", "Home directory"],
+    presentation: "radio",
+    order: 9,
+  },
+  "terminal.copyOnSelect": {
+    type: "boolean",
+    default: false,
+    title: "Copy on select",
+    description: "Automatically copy selected text to the clipboard.",
+    order: 10,
+  },
+  "terminal.bell": {
+    type: "boolean",
+    default: false,
+    title: "Enable bell",
+    description: "Play an audio bell on BEL character (\\x07).",
+    order: 11,
+  },
+  "terminal.macOptionAsAlt": {
+    type: "boolean",
+    default: false,
+    title: "Option key as Alt",
+    description: "Treat the macOS Option key as Alt, enabling alt-key sequences in programs like vim and tmux.",
+    order: 12,
+  },
+};
+
+registerSchemas("sindri.terminal", {
+  navSection: { group: "Appearance", label: "Terminal", order: 2 },
+  schema: TERMINAL_SCHEMA,
 });
 
 // ---------------------------------------------------------------------------

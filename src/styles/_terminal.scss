@@ -1,0 +1,384 @@
+/* ── Terminal panel (Phase 3) ─────────────────────────────────────────────── */
+
+.terminal-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.terminal-panel--left {
+  flex-direction: row;
+}
+
+/* ── Top tab bar ──────────────────────────────────────────────────────────── */
+
+.terminal-tab-bar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 0 4px;
+  gap: 2px;
+  min-height: 30px;
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar { display: none; }
+}
+
+.terminal-tab {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px 3px 10px;
+  border: none;
+  border-radius: 5px;
+  font-size: 12px;
+  color: var(--text-dim);
+  background: transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.1s, color 0.1s;
+  height: auto;
+
+  &:hover { background: var(--bg-hover); color: var(--text); }
+  &.active { background: var(--bg-hover); color: var(--text); }
+}
+
+.terminal-tab-title {
+  pointer-events: none;
+}
+
+.terminal-tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--text-dim);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.1s, background 0.1s;
+  flex-shrink: 0;
+
+  .terminal-tab:hover &,
+  .terminal-tab.active & { opacity: 0.6; }
+
+  &:hover { opacity: 1 !important; background: var(--bg-hover); color: var(--text); }
+}
+
+.terminal-tab-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 5px;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--text-dim);
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  height: auto;
+  transition: background 0.1s, color 0.1s;
+
+  &:hover { background: var(--bg-hover); color: var(--text); }
+}
+
+.terminal-tab-spacer {
+  flex: 1;
+}
+
+.terminal-layout-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  line-height: 1;
+  color: var(--text-dim);
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.1s, color 0.1s;
+
+  svg { display: block; }
+  &:hover { background: var(--bg-hover); color: var(--text); }
+}
+
+/* ── Inline rename input ─────────────────────────────────────────────────── */
+
+.terminal-tab-rename-input {
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  padding: 0 4px;
+  width: 80px;
+  height: 18px;
+  outline: none;
+  flex-shrink: 0;
+}
+
+.terminal-tab-rename-input--list {
+  width: 100%;
+  height: 20px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Left tab list ───────────────────────────────────────────────────────── */
+
+.terminal-tab-list {
+  display: flex;
+  flex-direction: column;
+  width: 170px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  background: var(--bg-chrome);
+  overflow: hidden;
+}
+
+.terminal-tab-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 5px 6px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  min-height: 30px;
+}
+
+.terminal-tab-list-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.terminal-tab-list-items {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.terminal-tab-list-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px 5px 10px;
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+  border-radius: 5px;
+  margin: 1px 4px;
+  transition: background 0.1s, color 0.1s;
+  min-height: 28px;
+
+  &:hover { background: var(--bg-hover); color: var(--text); }
+
+  &.active {
+    background: var(--bg-hover);
+    color: var(--text);
+  }
+
+  .terminal-tab-close--list { opacity: 0; }
+  &:hover .terminal-tab-close--list { opacity: 0.6; }
+  .terminal-tab-close--list:hover { opacity: 1 !important; }
+}
+
+.terminal-tab-list-dot {
+  font-size: 7px;
+  flex-shrink: 0;
+  color: var(--text-dim);
+  opacity: 0.4;
+
+  &.active {
+    color: var(--accent);
+    opacity: 1;
+  }
+}
+
+.terminal-tab-list-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.terminal-tab-close--list {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--text-dim);
+  cursor: pointer;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  transition: background 0.1s, color 0.1s;
+
+  &:hover { background: var(--bg-hover); color: var(--text); }
+}
+
+/* ── Settings two-column layout ─────────────────────────────────────────── */
+
+.terminal-section {
+  max-width: none;
+}
+
+.terminal-settings-layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.terminal-settings-controls {
+  flex: 0 0 460px;
+  min-width: 0;
+}
+
+/* ── Live preview panel ──────────────────────────────────────────────────── */
+
+.terminal-preview-wrapper {
+  flex: 1;
+  min-width: 280px;
+  position: sticky;
+  top: 0;
+}
+
+.terminal-preview-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.terminal-preview {
+  width: 100%;
+  height: 240px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  pointer-events: none;
+
+  .xterm { height: 100%; }
+  .xterm-viewport { overflow-y: hidden !important; }
+}
+
+/* ── Font picker ─────────────────────────────────────────────────────────── */
+
+.font-picker {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  width: 100%;
+  min-width: 240px;
+}
+
+.font-picker-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.font-picker-chevron-btn {
+  flex-shrink: 0;
+  width: 26px;
+  padding: 0;
+  font-size: 10px;
+  color: var(--text-dim);
+  background: var(--bg-chrome);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: sans-serif;
+
+  &:hover { background: var(--bg-hover); color: var(--text); }
+}
+
+/* Portal-rendered: positioned via inline `position: fixed` from the trigger rect,
+   so it escapes the Appearance card's overflow clipping. */
+.font-picker-dropdown {
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--bg-chrome);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  z-index: 1100;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.font-picker-item {
+  display: block;
+  width: 100%;
+  padding: 7px 12px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 13px;
+  height: auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  &:hover { background: var(--bg-hover); }
+
+  &.active {
+    color: var(--accent);
+    background: var(--accent-tint);
+  }
+}
+
+/* ── View container — all views stacked, active one is visible ───────────── */
+
+.terminal-views {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* Each xterm.js mount point fills the stack absolutely.
+   We use visibility:hidden (not display:none) so xterm retains layout
+   dimensions when it's in the background tab. */
+.terminal-view {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  /* Breathing room around the grid. FitAddon reads the container's *content*
+     height (padding excluded), so it fits the right number of rows inside the
+     padded area — no overflow, no clipped top row. The container is painted with
+     the resolved theme background (see TerminalPanel theme effect) so this gutter
+     blends into the terminal instead of showing the panel chrome. */
+  padding: 6px 4px 4px 10px;
+
+  .xterm { height: 100%; width: 100%; }
+  .xterm-viewport { overflow-y: auto !important; }
+}

@@ -238,6 +238,34 @@ CDP grants total control of the isolate, so the entire defense is **"never bind 
 
 ---
 
+## Addendum — 2026-06-17: bring-up fixes (registry lifecycle, source visibility)
+
+First end-to-end testing against `chrome://inspect` surfaced three defects in the initial implementation. The CDP protocol layer itself was verified **correct** — two reproduction tests ([`inspector_repro`](../../src-tauri/src/exthost/runtime.rs)) attach a real session (one direct, one through the full gateway) and confirm `Debugger.scriptParsed` fires for the bundle and `Debugger.getScriptSource` returns the source. The defects were around it.
+
+### A. Target registry is keyed to *attach*, not *activate* (amends §3)
+
+§3 said the registry is "populated as extensions activate and pruned as they unload." That made **every** activated extension a permanent CDP target for the life of the gateway, so stopping the debugger and refreshing `chrome://inspect` still listed the target.
+
+**Amended lifecycle:** a target is registered in `attach_debugger` and pruned in `stop_debugger` / `deactivate`. It appears in `/json/list` **only while a debugger is attached** — which also matches §6's command-driven flow. `ExtHost` remembers each extension's bundle path at activation (`bundle_paths`) so `attach_debugger` can build the target's CDP `url` on demand.
+
+> Not yet handled: closing the DevTools tab without invoking *Stop* leaves the target registered until explicit stop/unload. Pruning on WS disconnect is a possible follow-up; deferred to avoid breaking transient DevTools reconnects.
+
+### B. Original sources require an *inline* source map (refines §6)
+
+Extensions ship with a **linked** `extension.js.map` (the `sindri ext build` default). A CDP client attached to a `file://` script cannot fetch a linked `file://` map, so the Sources panel showed nothing useful. **Fix:** when the inspector is enabled, the runtime inlines the already-loaded map as a `data:` URI appended to the script source (V8 honours the last `sourceMappingURL`). DevTools then resolves the original TypeScript with zero external fetch. `--dev-sourcemaps` (already-inline) bundles are unaffected.
+
+### C. The `file://` script URL must key the source-map table (regression fix)
+
+Prefixing the script specifier with `file://` (for §2's `scriptParsed` URL) silently broke ADR-0025 §5 stack-trace translation: V8 frames carried `file:///…/ext.js` while `source_maps` was keyed by the bare path, so lookups missed. **Fix:** both the executed specifier and the map key derive from one `script_url_for(bundle_path)` helper, so frames and map keys always agree.
+
+### D. Isolate must report a **default** execution context (`is_main: true`) — the real "empty Sources" cause
+
+Live `chrome://inspect` (and Brave) still showed an **empty Sources panel** even though per-frame gateway logging confirmed Chrome sent `Debugger.enable` and V8 replayed `scriptParsed` for every script (bundle included). Root cause: `deno_core` reports an isolate's context as `{"isDefault":false,"type":"worker"}` unless `RuntimeOptions::is_main` is set. Chromium DevTools **blackboxes non-default execution contexts** (observed as a `Debugger.setBlackboxExecutionContexts` call targeting our context's `uniqueId`), which hides every script in it — so Sources renders empty despite the data arriving.
+
+**Fix:** set `RuntimeOptions { is_main: true, .. }` (gated to the inspector path; production unchanged). The context then reports `{"isDefault":true,"type":"default"}` — the same configuration Deno's own working `--inspect` uses. Each extension owns its own CDP target, so each isolate is legitimately the main context of its inspector. Confirmed: scripts appear and the inlined map (B) surfaces the original TypeScript.
+
+> **Debugging lesson:** the CDP **protocol** layer was correct the whole time — two unit tests proved `scriptParsed`/`getScriptSource` end-to-end. The bug lived entirely in **DevTools-frontend display semantics** (context classification), invisible to a synthetic CDP client. Per-frame gateway logging against a real browser was what localized it. Don't trust a passing synthetic CDP test to mean "DevTools will show it."
+
 ## See also
 
 - [ADR-0025](0025-js-extension-host-deno-v8.md) — the Deno/V8 host, per-isolate threading, and the source maps the debugger consumes

@@ -125,6 +125,27 @@ declare interface WebviewPanel {
   dispose(): void;
 }
 
+// ─── sindri.ui surface B — custom editors (ADR-0028) ─────────────────────────
+
+declare interface CustomDocument {
+  /** Absolute URI (file path) of the document. */
+  uri: string;
+  viewType: string;
+}
+
+declare interface EditorWebview {
+  /** Set to render: the full HTML document for this editor instance. */
+  html: string;
+  /** Send a message into the webview iframe. */
+  postMessage(msg: unknown): void;
+  /** Register a handler for messages posted from the webview iframe. */
+  onMessage(handler: (msg: unknown) => void): void;
+}
+
+declare interface CustomEditorProvider {
+  resolveCustomEditor(document: CustomDocument, webview: EditorWebview): void | Promise<void>;
+}
+
 declare interface SindriUi {
   createStatusBarItem(id: string, options?: { text?: string; tooltip?: string; popupPanelId?: string }): StatusBarItem;
   registerTreeView(id: string, options: { treeDataProvider: TreeViewProvider }): Disposable;
@@ -134,6 +155,14 @@ declare interface SindriUi {
     contribution: { id: string; title: string; icon?: string; defaultDock?: DockId },
     provider: WebviewPanelProvider,
   ): WebviewPanel;
+  /** ADR-0028 — register a custom editor for a file selector.
+   *  resolveCustomEditor is called per opened instance; set webview.html to render. */
+  registerEditor(
+    viewType: string,
+    selector: Array<{ scheme?: string; language?: string; pattern?: string }>,
+    provider: CustomEditorProvider,
+    options?: { priority?: "default" | "option" },
+  ): Disposable;
 }
 
 // ─── sindri.output (ADR-0030) ────────────────────────────────────────────────

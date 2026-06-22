@@ -118,6 +118,21 @@ export interface WebviewPanelContribution {
   defaultDock?: "left-top" | "left-bottom" | "right-top" | "right-bottom" | "bottom";
 }
 
+// ADR-0028 — surface B custom editor manifest contribution.
+// selector[] can use pattern (glob, e.g. "*.csv"), scheme, or language.
+export interface CustomEditorSelector {
+  scheme?: string;
+  language?: string;
+  pattern?: string;
+}
+
+export interface CustomEditorContribution {
+  viewType: string;           // globally unique, e.g. "sindri.csv-grid"
+  displayName: string;        // shown in "Open With…" list
+  selector: CustomEditorSelector[];
+  priority?: "default" | "option"; // "default" wins on plain open; "option" = Open With only
+}
+
 export interface ExtensionContributes {
   themes?: ThemeContribution[];
   iconThemes?: IconThemeContribution[];
@@ -129,6 +144,7 @@ export interface ExtensionContributes {
   panels?: PanelContribution[];            // ADR-0022 — sidebar panels (requires extension host)
   treeViews?: TreeViewContribution[];      // ADR-0026 §3 Tier 1
   webviewPanels?: WebviewPanelContribution[]; // ADR-0026 §4 Tier 2
+  customEditors?: CustomEditorContribution[]; // ADR-0028 — surface B custom editors
   configuration?: ConfigurationContribution; // ADR-0023 — settings schema
 }
 

@@ -1,0 +1,286 @@
+/* ── File Explorer ─────────────────────────────────────────────── */
+
+.file-explorer {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.file-explorer::-webkit-scrollbar {
+  width: 6px;
+}
+
+.file-explorer::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.file-explorer::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.file-explorer::-webkit-scrollbar-thumb:hover {
+  background: #2d3547;
+}
+
+.explorer-empty {
+  padding: 20px 16px;
+  text-align: center;
+}
+
+.explorer-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.explorer-toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 7px;
+  font-size: 11.5px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.explorer-toolbar-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.tree {
+  padding: 4px 0;
+  user-select: none;
+}
+
+.tree-node {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding-right: 10px; /* mirrors the 10px base left inset */
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.tree-dir {
+  color: var(--text);
+}
+
+.tree-file {
+  color: var(--text-dim);
+}
+
+.tree-node:hover {
+  background: var(--bg-hover);
+}
+
+.tree-chevron {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+}
+
+.tree-chevron svg {
+  display: block;
+  transition: transform 0.12s ease;
+}
+
+.tree-chevron-open svg {
+  transform: rotate(90deg);
+}
+
+.tree-chevron-hidden {
+  visibility: hidden;
+}
+
+.tree-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1;
+  /* On hover the name fades out under the (absolutely-positioned) action buttons
+     instead of being permanently squeezed by reserved space. Mask transitions
+     don't animate, but the buttons fade in over it for a smooth combined effect. */
+  transition: mask-position 0.1s;
+}
+
+.tree-node.tree-dir:hover .tree-name {
+  mask-image: linear-gradient(to right, #000 calc(100% - 50px), transparent calc(100% - 32px));
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 50px), transparent calc(100% - 32px));
+}
+
+.tree-node.tree-file:hover .tree-name {
+  mask-image: linear-gradient(to right, #000 calc(100% - 30px), transparent calc(100% - 16px));
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 30px), transparent calc(100% - 16px));
+}
+
+.tree-loading {
+  opacity: 0.4;
+  font-style: italic;
+}
+
+/* ── Tree directory hover actions (+file, +folder) ─────────────── */
+
+.tree-dir-actions {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding-right: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.1s;
+}
+
+.tree-node:hover .tree-dir-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.tree-dir-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: background 0.1s, opacity 0.1s, color 0.1s;
+}
+
+.tree-dir-action-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+  opacity: 1;
+}
+
+/* ── Tree file actions (delete button) ─────────────────────────── */
+
+.tree-file-actions {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding-right: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.1s;
+}
+
+.tree-node:hover .tree-file-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.tree-file-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: background 0.1s, opacity 0.1s, color 0.1s;
+}
+
+.tree-file-action-btn:hover {
+  background: var(--bg-hover);
+  color: #e06c75;
+  opacity: 1;
+}
+
+/* ── Inline file/folder creation row (appears inside tree at correct depth) ─ */
+
+.tree-create-row {
+  background: var(--bg-chrome);
+}
+
+.tree-create-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  padding: 1px 5px;
+  outline: none;
+  height: 18px;
+}
+
+/* ── Inline file/folder rename row (same as creation) ─────────────── */
+
+.tree-rename-row {
+  background: var(--bg-chrome);
+}
+
+.tree-rename-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  padding: 1px 5px;
+  outline: none;
+  height: 18px;
+}
+
+
+/* ── Tree icon slot ────────────────────────────────────────────────── */
+
+.tree-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tree-icon svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+

@@ -22,6 +22,13 @@ pub const VALID_CATEGORIES: &[&str] = &[
     "Icon Theme Base",
 ];
 
+/// `engines` block in `manifest.json` (ADR-0040).
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct Engines {
+    /// Semver range the Sindri host must satisfy (e.g. `">=0.1.0"`).
+    pub sindri: Option<String>,
+}
+
 /// Typed view of the manifest fields the CLI commands need. Unknown fields are
 /// ignored; structural validation works off the raw JSON (see [`validate`]).
 #[derive(Debug, Clone, Deserialize)]
@@ -61,6 +68,9 @@ pub struct Manifest {
     /// ADR-0038: template IDs hosted inside this pack/collection.
     #[serde(default)]
     pub provides: Vec<String>,
+    /// ADR-0040: host API-version constraint (e.g. `engines.sindri = ">=0.1.0"`).
+    #[serde(default)]
+    pub engines: Option<Engines>,
 }
 
 impl Manifest {
@@ -84,7 +94,7 @@ pub struct Contributes {
     #[serde(default, rename = "uiIconPacks")]
     pub ui_icon_packs: Vec<PathEntry>,
     #[serde(default)]
-    pub grammars: Vec<PathEntry>,
+    pub grammars: Vec<GrammarEntry>,
     #[serde(default, rename = "treeViews")]
     pub tree_views: Vec<IconEntry>,
     #[serde(default, rename = "webviewPanels")]
@@ -110,6 +120,20 @@ pub struct Contributes {
 #[derive(Debug, Clone, Deserialize)]
 pub struct PathEntry {
     pub path: String,
+}
+
+/// `contributes.grammars[]` entry (ADR-0041 §5).
+#[derive(Debug, Clone, Deserialize)]
+pub struct GrammarEntry {
+    /// Language identifier the editor assigns to a buffer (e.g. `"rust"`).
+    pub language: String,
+    /// Relative path to the tree-sitter WASM grammar file.
+    pub path: String,
+    /// Relative path to the highlights query (`.scm`).
+    pub highlights: String,
+    /// File extensions that map to this language (e.g. `[".rs"]`).
+    #[serde(default)]
+    pub extensions: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -246,8 +270,9 @@ pub fn validate_paths(ext_dir: &Path, manifest: &Manifest) -> Vec<String> {
         for t in &c.themes {
             check(&t.path, "contributes.themes[].path");
         }
-        for t in &c.grammars {
-            check(&t.path, "contributes.grammars[].path");
+        for g in &c.grammars {
+            check(&g.path, "contributes.grammars[].path");
+            check(&g.highlights, "contributes.grammars[].highlights");
         }
         // Inherited icon themes (ADR-0032) generate icons.json at runtime — skip.
         if manifest.extends.is_none() {

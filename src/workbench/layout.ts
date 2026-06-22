@@ -1,5 +1,6 @@
 import { createStore, produce } from "solid-js/store";
 import type { Component } from "solid-js";
+import { disposePanelHost } from "./panelHost";
 
 export type DockId =
   | "left-top" | "left-bottom"
@@ -314,6 +315,7 @@ export function hasWindowsForSide(side: "left" | "right"): boolean {
  *  activity bar and the dock rail, and won't be re-hydrated from persisted layout on
  *  next launch. */
 export function unregisterToolWindow(id: string): void {
+  disposePanelHost(id);
   setLayout(produce((s) => {
     if (!s.registry[id]) return;
     const dock = s.windows[id]?.dock;

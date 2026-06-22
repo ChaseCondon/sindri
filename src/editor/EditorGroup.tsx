@@ -7,7 +7,7 @@ import {
   setActiveGroup,
   type GroupId,
 } from "./groups";
-import { occKey, editorStates, scrollTops } from "./buffers";
+import { occKey, editorStates, scrollTops, registry } from "./buffers";
 import { themeCompartment, getCurrentCM6Extension } from "../theme/compartment";
 
 interface Props {
@@ -23,6 +23,12 @@ export function EditorGroup(props: Props) {
     const group = untrack(() => groupStore.groups[props.groupId]);
     if (!group) return;
     const activeId = group.activeBufferId;
+    if (!activeId) return;
+    // If the initial active buffer is a custom editor, defer CM view creation.
+    if ((registry.buffers[activeId]?.viewType ?? "text") !== "text") {
+      prevBufferId = activeId;
+      return;
+    }
     const state = editorStates.get(occKey(props.groupId, activeId));
     if (!state) return;
     view = new EditorView({ state, parent });
@@ -30,33 +36,47 @@ export function EditorGroup(props: Props) {
     prevBufferId = activeId;
   });
 
-  // Stash outgoing state + scroll, setState the incoming one. Same logic as
-  // ADR-0016 but scoped to this group's occurrence keys.
   createEffect(() => {
     const group = groupStore.groups[props.groupId];
     if (!group) return;
     const nextId = group.activeBufferId;
-    if (!view || !nextId || nextId === prevBufferId) return;
+    if (!nextId || nextId === prevBufferId) return;
 
-    if (prevBufferId) {
-      editorStates.set(occKey(props.groupId, prevBufferId), view.state);
-      scrollTops.set(occKey(props.groupId, prevBufferId), view.scrollDOM.scrollTop);
+    const nextBuf = registry.buffers[nextId];
+    const nextIsText = !nextBuf || nextBuf.viewType === "text";
+
+    // Stash outgoing text tab before switching to anything.
+    if (view && prevBufferId) {
+      const prevBuf = registry.buffers[prevBufferId];
+      if (!prevBuf || prevBuf.viewType === "text") {
+        editorStates.set(occKey(props.groupId, prevBufferId), view.state);
+        scrollTops.set(occKey(props.groupId, prevBufferId), view.scrollDOM.scrollTop);
+      }
     }
+
+    prevBufferId = nextId;
+
+    // Going to a custom editor — CM view has nothing to do.
+    if (!nextIsText) return;
 
     const nextState = editorStates.get(occKey(props.groupId, nextId));
-    if (nextState) {
-      view.setState(nextState);
-      // setState restores the compartment config that was baked into nextState,
-      // which may be stale if the theme changed since that state was last snapshotted.
-      // Re-apply the current theme to keep every tab in sync.
-      view.dispatch({ effects: themeCompartment.reconfigure(getCurrentCM6Extension()) });
-      const savedScroll = scrollTops.get(occKey(props.groupId, nextId)) ?? 0;
-      view.requestMeasure({
-        read: () => savedScroll,
-        write: (s) => { view!.scrollDOM.scrollTop = s; },
-      });
+    if (!nextState) return;
+
+    if (!view) {
+      // Lazy-create the CM view on first text activation.
+      view = new EditorView({ state: nextState, parent });
+      registerEditorView(props.groupId, view);
+      return;
     }
-    prevBufferId = nextId;
+
+    view.setState(nextState);
+    // Re-apply current theme in case it changed while this state was stashed.
+    view.dispatch({ effects: themeCompartment.reconfigure(getCurrentCM6Extension()) });
+    const savedScroll = scrollTops.get(occKey(props.groupId, nextId)) ?? 0;
+    view.requestMeasure({
+      read: () => savedScroll,
+      write: (s) => { view!.scrollDOM.scrollTop = s; },
+    });
   });
 
   onCleanup(() => {

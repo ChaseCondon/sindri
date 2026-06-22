@@ -1,0 +1,284 @@
+
+/* ── Workbench shell — the dark canvas ─────────────────────────── */
+
+.workbench-shell {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+  padding: var(--gap);
+  gap: 0;
+}
+
+/* Outer row: [activity bar left] [workbench-content] [activity bar right]
+   Activity bars span the full height including the bottom dock area. */
+.workbench-frame {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+  gap: var(--gap);
+}
+
+/* Inner column: [workbench-main] + optional [splitter + bottom dock] */
+.workbench-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.workbench-main {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── Editor island ─────────────────────────────────────────────── */
+
+.workbench-center {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+/* ── Activity bar — chrome strip (part of the frame, not a panel) ─ */
+
+.activity-bar {
+  width: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 0;
+  background: transparent;      /* blends with the dark canvas */
+  flex-shrink: 0;
+  position: relative;           /* anchors the drag drop-line */
+}
+
+.activity-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 0 4px;
+  gap: 2px;
+}
+
+.activity-icon {
+  width: 36px;
+  height: 36px;
+  max-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 16px;
+  cursor: grab;
+  transition: background 0.1s, color 0.1s, max-height 0.14s ease, opacity 0.1s ease;
+  flex-shrink: 0;
+  user-select: none;
+  overflow: hidden;
+}
+
+.activity-icon:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.activity-icon.active {
+  background: var(--accent-tint);
+  color: var(--accent);
+  box-shadow: var(--glow-accent);
+}
+
+.activity-icon.dragging {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+/* Size SVGs rendered via innerHTML in activity-icon buttons.
+   pointer-events:none lets clicks pass through SVG paths to the button. */
+.activity-icon svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+.activity-divider {
+  width: 24px;
+  height: 1.5px;
+  background: var(--text-dim);
+  opacity: 0.45;
+  margin: 5px 0;
+  flex-shrink: 0;
+}
+
+.activity-spacer {
+  flex: 1;
+}
+
+/* ── Activity bar drag system ────────────────────────────────────── */
+
+/* Source icon dims in place — no layout shift */
+.activity-icon.icon-dragging-source {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+/* Placeholder block in the drag render-list — flex item, same size as an icon.
+   Icons shift aside to make room for it, showing exactly where the drop will land. */
+.activity-placeholder {
+  width: 36px;
+  height: 36px;
+  border: 1.5px dashed var(--accent);
+  border-radius: 7px;
+  background: var(--accent-tint);
+  opacity: 0.8;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+/* During an active drag every zone (even an empty one, in either rail) becomes a
+   comfortable drop target. min-height only grows zones shorter than it — populated
+   zones are unaffected. The matched target zone glows. */
+.activity-bar.drag-active .activity-section {
+  min-height: 52px;
+  border-radius: 8px;
+  transition: background 0.1s;
+}
+.activity-bar.drag-active .activity-section.drop-target-zone {
+  background: var(--accent-tint);
+}
+
+/* ── Dock rail — vertical flex column wrapping primary + secondary zones ── */
+
+.dock-rail {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  min-height: 0;
+  gap: 0;
+}
+
+/* Top zone fills remaining rail height */
+.dock-rail .dock-panel.dock-zone-top {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Bottom zone fills when it is the only zone in the rail */
+.dock-panel.dock-fill {
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Panel island (formerly dock-bar) ──────────────────────────── */
+
+.dock-panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px 4px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.panel-title {
+  flex: 1;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  user-select: none;
+}
+
+.panel-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.1s, background 0.1s;
+}
+
+.panel-action-btn:hover {
+  background: var(--bg-hover);
+  opacity: 1;
+  color: var(--text);
+}
+
+.panel-body {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+/* Keep-alive panel body host fills the panel-body box (re-parented between docks). */
+.panel-host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* While any panel/tab is being dragged OR a splitter is being resized, kill text
+   selection everywhere — the pointer roams over the editor, gutter, and rails,
+   and even the normally-selectable editor content must not select mid-drag.
+   (Cursor is left to each handle so splitters keep their resize cursor.) */
+body.user-dragging,
+body.user-dragging * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+/* ── Splitter — acts as the gap between islands ────────────────── */
+
+.splitter {
+  flex-shrink: 0;
+  background: transparent;
+  border-radius: 3px;
+  transition: background 0.15s;
+}
+
+.splitter-col {
+  width: var(--gap);
+  cursor: col-resize;
+}
+
+.splitter-row {
+  height: var(--gap);
+  cursor: row-resize;
+}
+
+.splitter:hover {
+  background: var(--accent-tint);
+}

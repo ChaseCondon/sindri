@@ -1,0 +1,43 @@
+/* ── Design tokens ─────────────────────────────────────────────── */
+/* Color/glow tokens are set dynamically by src/theme/registry.ts (applyTheme).
+   These :root defaults are the Sindri Dark fallback and survive a flash before
+   JS runs. See docs/design/theming.md for the full token catalog. */
+
+:root {
+  /* UI tokens — written by applyTheme() */
+  --bg: #0a0d16;
+  --bg-panel: #12172b;
+  --bg-chrome: #0d1120;
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --border: #1e2433;
+  --border-subtle: #181d2a;
+  --text: #cdd3de;
+  --text-dim: #6b7585;
+  --accent: #5ba9ff;
+  --accent-tint: rgba(91, 169, 255, 0.14);
+  --danger: #e06c75;
+
+  /* Glow tokens — written by applyTheme() */
+  --glow-color: 91, 169, 255;
+  --glow-accent: 0 0 8px rgba(91, 169, 255, 0.45);
+  --glow-accent-strong: 0 0 16px rgba(91, 169, 255, 0.6), 0 0 32px rgba(91, 169, 255, 0.25);
+
+  /* Geometry constants — not themeable (ADR-0019) */
+  --radius: 10px;
+  --gap: 6px;
+
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+}

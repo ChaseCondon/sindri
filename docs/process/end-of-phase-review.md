@@ -3,7 +3,7 @@
 > The mandatory gate between every roadmap phase. Opened only when a phase's last item is **landed and verified**; not a turn-by-turn reference. Run it, write the artifact, clear the gates, then start the next phase.
 
 - **When:** the final item of a phase is done **and verified** — *before* any next-phase work begins.
-- **Model:** **Fable 5** for the judgment pass (this is the north-star, whole-system review the model table reserves Fable for). **Opus 4.8** acceptable for small phases. **Never Sonnet/Haiku for judgment** — those only run the mechanical scans (§7).
+- **Model:** **Opus 4.8** for the judgment pass — the top tier (Fable 5 retired). This is the north-star, whole-system review. **Never Sonnet/Haiku for judgment** — those only run the mechanical scans (§7).
 - **Nature:** a **hard, two-stage gate**. The phase is not closed, and the next phase may not begin, until *both* stages pass (§6).
 
 ---
@@ -59,7 +59,7 @@ flowchart LR
 |---|---|---|
 | **B1** | **File size** | **Rust:** target 150–350 · 🟡 **review > 400** · 🔴 **split > 600** (unless a documented cohesive reason). **Frontend:** target < 250 · 🟡 > 300 · 🔴 > 500 |
 | **B2** | **Decomposition health** — no crate or area may concentrate the majority of its logic in a handful of god-files. Each subsystem, each Tauri-command domain, each component is its own module. Prefer **extracting embedded assets** (e.g. a large JS bootstrap string → its own `.js` loaded via `include_str!`) over letting them inflate a source file | judgment, informed by the size census |
-| **B3** | **Frontend styling** — **SCSS files only.** No inline `style={…}`, no raw `.css`. Colours and spacing come from theme tokens (ADR-0019), not magic literals | grep `style={` / `style="`, `*.css` |
+| **B3** | **Frontend styling** — colours & spacing come from **theme tokens / CSS custom properties (ADR-0019)**, never magic literals. No *static* inline styles; dynamic computed styles (positions, depth, theme vars) are fine. A `styles.css` consuming `var(--*)` is the intended architecture (ADR-0019), **not** a violation | grep static `style=` + magic hex/px literals |
 | **B4** | **No speculative abstraction / dead code** — unused exports, one-caller abstractions, commented-out blocks. Implement what's needed, not what might be | grep + judgment |
 | **B5** | **No `unsafe` Rust** unless **explicitly required** (e.g. an FFI / V8 boundary that has no safe alternative). Every `unsafe` block carries a justifying comment and, if non-trivial, an ADR note. Safety + performance is *why* Rust was chosen — `unsafe` forfeits half of that and must earn its place | grep `unsafe` |
 | **B6** | **Tests in their own files** — unit tests live in a **dedicated sibling file** via `#[cfg(test)] mod tests;` → `foo/tests.rs` (fully idiomatic Rust *and* keeps the source file lean); integration tests in `tests/`. Frontend tests alongside as `*.test.ts(x)`. No large inline `#[cfg(test)]` modules bloating a source file | scan |
@@ -115,7 +115,7 @@ Append-only, dated, one per phase. Structure:
 
 The review is expensive (a top-tier model reading the whole system). Keep the noise out of that context:
 
-1. **Mechanical scans first — delegate to Explore/Haiku/Sonnet subagents** (`model` param) as a **context firewall**. Their raw output never enters the Fable judgment context; only conclusions return. Scans to delegate:
+1. **Mechanical scans first — delegate to Explore/Haiku/Sonnet subagents** (`model` param) as a **context firewall**. Their raw output never enters the judgment context; only conclusions return. Scans to delegate:
    - file-size census (Rust + frontend)
    - inline-style + `.css` grep (B3)
    - `unsafe` grep (B5)
@@ -124,7 +124,7 @@ The review is expensive (a top-tier model reading the whole system). Keep the no
    - `unwrap`/`expect`/swallowed-error grep (B9)
    - dependency-diff + license scan (B10)
    - full test-suite run (B7)
-2. **Judgment pass on Fable 5** — read vision + ADRs + the scan conclusions; perform Axes A/B/C reasoning, the ADR-amendment analysis, and the first-principles reconstruction (C1).
+2. **Judgment pass on Opus 4.8** — read vision + ADRs + the scan conclusions; perform Axes A/B/C reasoning, the ADR-amendment analysis, and the first-principles reconstruction (C1).
 3. **Write the artifact**, open the intra-phase tasks, and insert future items into the roadmap.
 
 ### Scan command starter kit

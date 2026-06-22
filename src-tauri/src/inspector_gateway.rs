@@ -324,8 +324,35 @@ fn sha1(data: &[u8]) -> [u8; 20] {
     out
 }
 
+#[cfg(test)]
+mod handshake_tests {
+    use super::*;
+
+    /// RFC 6455 §1.3 canonical example: key "dGhlIHNhbXBsZSBub25jZQ==" must yield
+    /// accept "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=". Real Chrome validates this; if it's
+    /// wrong the WS upgrade is rejected and DevTools' Sources panel stays empty.
+    #[test]
+    fn ws_accept_key_matches_rfc6455() {
+        assert_eq!(
+            ws_accept_key("dGhlIHNhbXBsZSBub25jZQ=="),
+            "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="
+        );
+    }
+
+    #[test]
+    fn base64_matches_known_vectors() {
+        assert_eq!(base64_encode(b""), "");
+        assert_eq!(base64_encode(b"f"), "Zg==");
+        assert_eq!(base64_encode(b"fo"), "Zm8=");
+        assert_eq!(base64_encode(b"foo"), "Zm9v");
+        assert_eq!(base64_encode(b"foob"), "Zm9vYg==");
+        assert_eq!(base64_encode(b"fooba"), "Zm9vYmE=");
+        assert_eq!(base64_encode(b"foobar"), "Zm9vYmFy");
+    }
+}
+
 /// Standard Base64 encoding (RFC 4648 §4).
-fn base64_encode(bytes: &[u8]) -> String {
+pub(crate) fn base64_encode(bytes: &[u8]) -> String {
     const TABLE: &[u8; 64] =
         b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = Vec::with_capacity((bytes.len() + 2) / 3 * 4);

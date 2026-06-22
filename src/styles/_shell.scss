@@ -1,0 +1,249 @@
+
+/* ── App shell ─────────────────────────────────────────────────── */
+
+.app {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100%;
+  /* Desktop-app default: chrome is not text-selectable. Real text selection is
+     re-enabled only on the editor content and form fields (see below + _editor). */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input,
+textarea,
+[contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* ── Titlebar ──────────────────────────────────────────────────── */
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 16px;
+  background: var(--bg-chrome);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 12.5px;
+  user-select: none;
+}
+
+.titlebar .brand {
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  color: var(--accent);
+}
+
+.titlebar .filename {
+  color: var(--text-dim);
+}
+
+.titlebar .actions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+
+/* ── Buttons ───────────────────────────────────────────────────── */
+
+button {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+
+button:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+  border-color: #2d3547;
+}
+
+button:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ── Theme picker (titlebar) ───────────────────────────────────── */
+
+.theme-picker {
+  position: relative;
+}
+
+.theme-picker-trigger {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+}
+
+.theme-picker-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 1000;
+  background: var(--bg-chrome);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+  min-width: 180px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.theme-picker-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-radius: 5px;
+  padding: 5px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+  background: transparent;
+  color: var(--text-dim);
+}
+
+.theme-picker-item:hover,
+.theme-picker-item.is-active {
+  background: var(--bg-hover);
+  color: var(--text);
+  border-color: transparent;
+}
+
+.theme-picker-item.is-active {
+  color: var(--accent);
+}
+
+/* ── Status bar ────────────────────────────────────────────────── */
+
+.statusbar {
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  background: var(--bg-chrome);
+  border-top: 1px solid var(--border-subtle);
+  font-size: 11.5px;
+  color: var(--text-dim);
+  min-height: 26px;
+  gap: 12px;
+}
+
+.statusbar-status {
+  flex: 1;
+}
+
+.statusbar-ext-items {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.statusbar-item {
+  padding: 0 6px;
+  border-radius: 3px;
+  cursor: default;
+  white-space: nowrap;
+  background: var(--bg-surface, transparent);
+}
+
+.statusbar-item-clickable {
+  cursor: pointer;
+}
+
+.statusbar-item-clickable:hover {
+  background: var(--bg-hover, rgba(255,255,255,0.07));
+}
+
+/* ── Theme bar (temporary; moves to Settings in a future milestone) ── */
+
+.theme-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.theme-bar-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.theme-bar-label {
+  opacity: 0.65;
+  user-select: none;
+}
+
+.theme-bar-btn {
+  padding: 2px 7px;
+  font-size: 11px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s, border-color 0.1s, box-shadow 0.1s;
+  height: auto;
+}
+
+.theme-bar-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.theme-bar-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: var(--glow-accent);
+}
+
+.theme-bar-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--border);
+}
+
+.theme-bar-select {
+  padding: 2px 5px;
+  font-size: 11px;
+  font-family: inherit;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  cursor: pointer;
+  outline: none;
+}
+
+.theme-bar-select:focus {
+  border-color: var(--accent);
+  box-shadow: var(--glow-accent);
+}
+
+.theme-bar-link {
+  opacity: 0.5;
+  font-size: 10px;
+  padding: 1px 5px;
+}
+
+.theme-bar-link.active {
+  opacity: 1;
+}
+

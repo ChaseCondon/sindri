@@ -1,0 +1,321 @@
+/* ── Editor area — split-tree container ────────────────────────── */
+
+.editor-area {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Editor text IS selectable — re-enables it against the shell-wide
+   `.app { user-select: none }`. The gutter (line numbers) stays non-selectable. */
+.cm-content,
+.cm-line {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Split containers */
+.editor-split {
+  height: 100%;
+  width: 100%;
+}
+
+/* One leaf pane: tab bar + editor surface stacked */
+.editor-group {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ── Welcome screen — shown when a group has no open tabs ─────── */
+
+.welcome-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 10px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.welcome-logo {
+  font-size: 52px;
+  font-weight: 800;
+  letter-spacing: -2px;
+  color: var(--accent);
+  opacity: 0.25;
+  text-shadow: var(--glow-accent-strong);
+}
+
+.welcome-hint {
+  font-size: 12px;
+  color: var(--text-dim);
+  opacity: 0.5;
+}
+
+/* ── Drop overlay (pointer-event DnD, shown only during external drag) ─ */
+
+/* Overlay sits below the tab bar so the tab bar handles its own merge drop */
+.drop-overlay {
+  position: absolute;
+  top: 35px; /* skip tab bar */
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+}
+
+/* Empty group (welcome screen, no tab bar) — overlay fills the whole box so the
+   split preview isn't offset by a phantom tab-bar strip. */
+.drop-overlay.drop-overlay-full {
+  top: 0;
+}
+
+/* Non-overlapping 33% zones — transparent capture areas only */
+.drop-zone {
+  position: absolute;
+  pointer-events: all;
+}
+
+.drop-zone-north  { top: 0;   left: 0;   right: 0;   height: 33%; }
+.drop-zone-south  { bottom: 0; left: 0;  right: 0;   height: 33%; }
+.drop-zone-west   { top: 33%; left: 0;   width: 33%; bottom: 33%; }
+.drop-zone-east   { top: 33%; right: 0;  width: 33%; bottom: 33%; }
+.drop-zone-center { top: 33%; left: 33%; right: 33%; bottom: 33%; }
+
+/* Split preview — full-half highlight driven by data-zone; pointer-events: none.
+   Position snaps instantly (no position transition — animating all 4 edges
+   simultaneously causes a "collapsing rectangle" artifact when moving between
+   opposite zones). Entrance is indicated by a fast fade-in animation. */
+.split-preview {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 4px;
+  display: none;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border: 2px solid var(--accent);
+}
+
+@keyframes zoneEnter {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.split-preview[data-zone="center"] { display: block; top: 4px; left: 4px; right: 4px; bottom: 4px; animation: zoneEnter 0.08s ease; }
+.split-preview[data-zone="north"]  { display: block; top: 0;   left: 0;   right: 0;   bottom: 50%; animation: zoneEnter 0.08s ease; }
+.split-preview[data-zone="south"]  { display: block; top: 50%; left: 0;   right: 0;   bottom: 0;   animation: zoneEnter 0.08s ease; }
+.split-preview[data-zone="west"]   { display: block; top: 0;   left: 0;   right: 50%; bottom: 0;   animation: zoneEnter 0.08s ease; }
+.split-preview[data-zone="east"]   { display: block; top: 0;   left: 50%; right: 0;   bottom: 0;   animation: zoneEnter 0.08s ease; }
+
+/* Tab bar drop target for cross-group merge */
+.editor-tabs-merge-target {
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-chrome)) !important;
+  border-bottom-color: var(--accent) !important;
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+/* Ghost tab — rendered imperatively in document.body, follows cursor */
+.editor-tab.tab-ghost {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55);
+  transform: scale(1.03);
+  cursor: grabbing;
+  transition: none !important;
+}
+
+/* Placeholder in the target tab bar showing the drop landing position */
+.tab-placeholder {
+  flex-shrink: 0;
+  height: 34px;
+  background: var(--accent-tint);
+  border: 1px dashed var(--accent);
+  border-radius: 4px;
+  opacity: 0.7;
+}
+
+/* Dragged tab collapses in the source bar.
+   max-width must begin at a known value so the CSS transition fires cleanly.
+   300px is generous for any filename and tabs rarely exceed it. */
+.editor-tab {
+  max-width: 300px;
+  position: relative;
+}
+
+.editor-tab.tab-dragging {
+  max-width: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none;
+}
+
+/* Transitions active only during a drag — normal tab open/close stays instant */
+.editor-tabs--reordering .editor-tab {
+  transition: max-width 0.18s ease, padding 0.18s ease, opacity 0.15s ease;
+}
+
+/* ── Editor tab bar ────────────────────────────────────────────── */
+
+.editor-tabs {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
+  padding: 0 4px;
+  background: var(--bg-chrome);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.editor-tabs::-webkit-scrollbar {
+  height: 3px;
+}
+
+.editor-tabs::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.editor-tabs::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.editor-tabs::-webkit-scrollbar-thumb:hover {
+  background: var(--text-dim);
+}
+
+.editor-tab {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px 0 10px;
+  height: 34px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  cursor: pointer;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  transition: color 0.1s, border-color 0.1s, background 0.1s;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.editor-tab:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+
+.editor-tab.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+  border-bottom-width: 2px;
+  box-shadow: 0 2px 0 0 var(--accent), inset 0 -1px 8px rgba(var(--glow-color), 0.08);
+}
+
+.editor-tab-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.editor-tab-dirty {
+  color: var(--accent);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.editor-tab-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  margin-left: 2px;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--text-dim);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.1s, background 0.1s, color 0.1s;
+  flex-shrink: 0;
+}
+
+.editor-tab:hover .editor-tab-close,
+.editor-tab.active .editor-tab-close {
+  opacity: 0.6;
+}
+
+.editor-tab-close:hover {
+  opacity: 1 !important;
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* ── Editor surface ────────────────────────────────────────────── */
+
+.editor {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.editor .cm-editor {
+  height: 100%;
+}
+
+/* Themed scrollbars on the CodeMirror scroll container */
+.editor .cm-scroller {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.editor .cm-scroller::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.editor .cm-scroller::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.editor .cm-scroller::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.editor .cm-scroller::-webkit-scrollbar-thumb:hover {
+  background: #2d3547;
+}
+
+.editor .cm-scroller::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ── Light theme overrides ─────────────────────────────────────────────
+   Most chrome re-themes via CSS vars automatically. Only structural overrides
+   that can't be expressed purely via token substitution go here. */
+
+[data-theme-kind="light"] button:hover {
+  background: var(--bg-hover);
+  border-color: var(--border);
+}
+
+[data-theme-kind="light"] .context-menu {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme-kind="light"] .editor .cm-scroller::-webkit-scrollbar-thumb:hover {
+  background: #b0bec5;
+}
+

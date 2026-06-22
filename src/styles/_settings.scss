@@ -1,0 +1,692 @@
+/* ── Settings modal (ADR-0021) ─────────────────────────────────────── */
+
+.settings-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-dialog {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.7), var(--glow-accent-strong);
+  width: min(1360px, calc(100vw - 32px));
+  height: min(920px, calc(100vh - 32px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-chrome);
+  flex-shrink: 0;
+}
+
+.settings-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.2px;
+}
+
+.settings-close {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1;
+  height: auto;
+}
+
+.settings-close:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.settings-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Nav sidebar */
+
+.settings-nav {
+  width: 210px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border-subtle);
+  background: var(--bg-chrome);
+  padding: 10px 0;
+  overflow-y: auto;
+}
+
+.settings-nav-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 18px;
+  font-size: 12.5px;
+  background: transparent;
+  border: none;
+  border-left: 2px solid transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  height: auto;
+  border-radius: 0;
+  transition: color 0.1s, background 0.1s;
+}
+
+.settings-nav-item:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.settings-nav-item.active {
+  border-left-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-tint);
+  font-weight: 500;
+}
+
+/* Nav group headers (collapsible) */
+
+.settings-nav-group-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 14px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.9px;
+  color: var(--text-dim);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  height: auto;
+  border-radius: 0;
+  margin-top: 6px;
+  user-select: none;
+  opacity: 0.7;
+  transition: opacity 0.1s;
+}
+
+.settings-nav-group-header:hover {
+  opacity: 1;
+  background: transparent;
+}
+
+.settings-nav-chevron {
+  display: inline-block;
+  font-size: 12px;
+  line-height: 1;
+  transition: transform 0.15s;
+  transform: rotate(90deg);
+  color: var(--text-dim);
+}
+
+.settings-nav-chevron.collapsed {
+  transform: rotate(0deg);
+}
+
+/* Content pane */
+
+.settings-content {
+  flex: 1;
+  overflow: hidden; /* marketplace manages its own scroll internally */
+  display: flex;
+  flex-direction: column;
+}
+
+/* Non-marketplace sections scroll normally */
+.settings-section {
+  padding: 28px 36px;
+  max-width: 720px;
+  overflow-y: auto;
+  flex: 1;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.settings-section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 16px;
+}
+
+/* Plain subsection title — used by hand-written sections (LanguagePacks etc.) */
+.settings-subsection-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin: 20px 0 8px;
+  letter-spacing: 0;
+  text-transform: none;
+  opacity: 1;
+}
+
+.settings-subsection-title--spaced {
+  margin-top: 1.25rem;
+}
+
+/* ── Schema card groups (SchemaSection) ───────────────────────────────── */
+
+.settings-group {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.settings-group-header {
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--bg-chrome);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Rows inside a card inherit horizontal padding from the card edge */
+.settings-group .settings-row {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.settings-group .settings-row:last-child {
+  border-bottom: none;
+}
+
+.settings-section-divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 20px 0;
+}
+
+.settings-section-desc {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  margin: 0 0 20px;
+  line-height: 1.6;
+}
+
+.settings-section-desc code {
+  background: var(--bg-chrome);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-size: 11px;
+}
+
+/* Settings rows */
+
+.settings-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.settings-row:last-child {
+  border-bottom: none;
+}
+
+.settings-row-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-row-name {
+  display: block;
+  font-size: 12px;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.settings-row-desc {
+  display: block;
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+.settings-row-control {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 1px; /* optical alignment with .settings-row-name text */
+}
+
+.settings-row-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Form controls */
+
+.settings-select {
+  padding: 5px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  background: var(--bg-chrome);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+  outline: none;
+  min-width: 200px;
+}
+
+.settings-select:focus {
+  border-color: var(--accent);
+  box-shadow: var(--glow-accent);
+}
+
+.settings-input {
+  padding: 5px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  background: var(--bg-chrome);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  outline: none;
+  min-width: 260px;
+}
+
+.settings-input:focus {
+  border-color: var(--accent);
+  box-shadow: var(--glow-accent);
+}
+
+.settings-input-sm {
+  min-width: 80px;
+  width: 80px;
+}
+
+.settings-chip {
+  padding: 3px 10px;
+  font-size: 11px;
+  font-family: inherit;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+  height: auto;
+  transition: all 0.1s;
+}
+
+.settings-chip:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.settings-chip.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-tint);
+}
+
+.settings-btn-primary {
+  padding: 5px 14px;
+  font-size: 12px;
+  font-family: inherit;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  color: #fff;
+  cursor: pointer;
+  height: auto;
+  font-weight: 500;
+  transition: opacity 0.1s;
+}
+
+.settings-btn-primary:hover {
+  opacity: 0.88;
+}
+
+.settings-btn-secondary {
+  padding: 5px 14px;
+  font-size: 12px;
+  font-family: inherit;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-dim);
+  cursor: pointer;
+  height: auto;
+  transition: background 0.1s, color 0.1s;
+}
+
+.settings-btn-secondary:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.settings-btn-secondary--compact {
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+/* Extension Repositories */
+
+.settings-repo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+/* Wrapper so the row + drawer share a card border */
+.settings-repo-item {
+  background: var(--bg-chrome);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.settings-repo-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+}
+
+.settings-repo-row-clickable {
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s;
+}
+.settings-repo-row-clickable:hover { background: var(--bg-hover); }
+
+.settings-repo-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Collapsible per-repo settings drawer */
+.settings-repo-drawer {
+  border-top: 1px solid var(--border-subtle);
+  padding: 8px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--bg);
+}
+
+.settings-repo-drawer-item {
+  font-size: 11px !important;
+  opacity: 0.85;
+}
+.settings-repo-drawer-item:hover { opacity: 1; }
+
+/* Arrow expand button */
+.settings-repo-expand-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 5px;
+  height: auto;
+  line-height: 1;
+  border-radius: 3px;
+  transition: transform 0.15s, color 0.1s;
+  transform: rotate(0deg);
+}
+.settings-repo-expand-btn.open {
+  transform: rotate(90deg);
+  color: var(--accent);
+}
+.settings-repo-expand-btn:hover { color: var(--text); background: var(--bg-hover); }
+
+.settings-repo-prerelease-label {
+  font-size: 11px !important;
+  opacity: 0.75;
+}
+.settings-repo-prerelease-label:hover { opacity: 1; }
+
+.settings-repo-badge-prerelease {
+  background: rgba(200, 140, 50, 0.12) !important;
+  color: #D4A040 !important;
+  border-color: rgba(200, 140, 50, 0.25) !important;
+}
+
+.settings-repo-badge-errors {
+  background: rgba(255, 80, 80, 0.1) !important;
+  color: #E06060 !important;
+  border-color: rgba(255, 80, 80, 0.22) !important;
+}
+
+.settings-repo-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.settings-repo-url {
+  font-size: 12px;
+  color: var(--text);
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-repo-label-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.settings-repo-name {
+  font-size: 12px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-repo-url-secondary {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-repo-meta-desc {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin: 0;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.settings-repo-meta-item {
+  font-size: 11px;
+  padding-bottom: 4px;
+}
+
+.settings-repo-meta-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-family: monospace;
+  font-size: 10px;
+}
+.settings-repo-meta-link:hover { text-decoration: underline; }
+
+.settings-repo-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--accent-tint);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  flex-shrink: 0;
+}
+
+.settings-repo-btn {
+  font-size: 11px;
+  padding: 3px 8px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-dim);
+  cursor: pointer;
+  height: auto;
+  flex-shrink: 0;
+}
+
+.settings-repo-btn:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: rgba(255, 80, 80, 0.08);
+}
+
+.settings-repo-add {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.settings-repo-add-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Validation */
+
+.settings-input-error {
+  border-color: var(--danger) !important;
+}
+
+.settings-input-error:focus {
+  box-shadow: 0 0 0 2px rgba(255, 80, 80, 0.18) !important;
+}
+
+.settings-field-error {
+  font-size: 11px;
+  color: var(--danger);
+  padding: 0 2px;
+}
+
+.settings-success-note {
+  font-size: 11px;
+  color: var(--accent);
+  padding: 0 2px;
+}
+
+/* Editor theme checkbox row */
+
+.settings-editor-theme {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  align-items: flex-start;
+}
+
+.settings-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.settings-checkbox-label:hover {
+  color: var(--text);
+}
+
+.settings-checkbox {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.settings-select-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.settings-radio-group {
+  display: flex;
+  gap: 16px;
+  padding-left: 2px;
+}
+
+.settings-radio-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+}
+
+.settings-radio-label:hover {
+  color: var(--text);
+}
+
+.settings-radio {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.settings-range {
+  width: 160px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.settings-range-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-range-value {
+  font-size: 11px;
+  color: var(--text-dim);
+  min-width: 28px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+

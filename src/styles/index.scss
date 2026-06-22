@@ -1,0 +1,13 @@
+// Sindri stylesheet entry point.
+// Each partial owns one UI domain; Sass concatenates them in cascade order.
+@use 'tokens';
+@use 'shell';
+@use 'workbench';
+@use 'context-menu';
+@use 'explorer';
+@use 'editor';
+@use 'settings';
+@use 'marketplace';
+@use 'quick-pick';
+@use 'popup';
+@use 'terminal';

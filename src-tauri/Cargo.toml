@@ -36,6 +36,7 @@ tauri-build = { version = "2", features = [] }
 sindri-core = { path = "crates/sindri-core" }
 tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Environment seam (ADR-0009): async from day one for IO-bound remote backends.
@@ -53,6 +54,14 @@ sourcemap = "9"
 # CDP gateway for V8 Inspector (ADR-0037, dev builds only)
 tokio-tungstenite = { version = "0.24", default-features = false }
 futures = "0.3"
+# Tree-sitter syntax engine — ADR-0041. WASM grammars via wasmtime (wasm feature).
+# Engine lives in the sindri app crate only; sindri-core stays wasmtime-free.
+tree-sitter = { version = "0.26", features = ["wasm"] }
+streaming-iterator = "0.1"
+# PTY for the terminal panel (Phase 3). Uses OS PTY on Unix, ConPTY on Windows.
+portable-pty = "0.9"
+# System font enumeration for the terminal font picker (Phase 3).
+font-kit = "0.14"
 
 [dev-dependencies]
 tempfile = "3"

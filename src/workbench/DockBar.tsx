@@ -1,4 +1,4 @@
-import { Show } from "solid-js";
+import { Show, createEffect } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import {
   layout,
@@ -7,8 +7,22 @@ import {
   dockZone,
   type DockId,
 } from "./layout";
+import { getPanelHost } from "./panelHost";
 import { openMenu } from "./ContextMenu";
 import { moveToolWindow } from "./layout";
+
+// Mounts the active tool window's persistent, keep-alive body (panelHost) into
+// this dock. Re-parents on id change rather than remounting, so panel state
+// survives moves between docks.
+function PanelBody(props: { id: string }) {
+  let el!: HTMLDivElement;
+  createEffect(() => {
+    const host = getPanelHost(props.id);
+    if (host) el.replaceChildren(host);
+    else el.replaceChildren();
+  });
+  return <div class="panel-body" ref={el} />;
+}
 
 const ALL_DOCKS: DockId[] = [
   "left-top", "left-bottom",
@@ -85,9 +99,7 @@ export function DockBar(props: Props) {
             ✕
           </button>
         </div>
-        <div class="panel-body">
-          <Dynamic component={activeDef()!.render} />
-        </div>
+        <PanelBody id={activeId()!} />
       </Show>
     </div>
   );

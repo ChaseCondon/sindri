@@ -1,11 +1,13 @@
 # ADR-0022: Sidebar panels as extensions — all panels except core three are extension-contributed
 
-- Status: Proposed · **rendering mechanism defined by [ADR-0026](0026-ui-panel-api.md)**
+- Status: Accepted (2026-06-17, Phase 1 review) · **rendering mechanism defined by [ADR-0026](0026-ui-panel-api.md)**
 - Date: 2026-06-04
 - Extends: [ADR-0006](0006-dogfooded-js-extension-host.md), [ADR-0015](0015-js-extension-host-runtime.md), [ADR-0020](0020-extension-distribution-and-marketplace.md)
 
 > **⚠️ Addendum (2026-06-09) — the `render(container)` signature in §2 is superseded by [ADR-0026](0026-ui-panel-api.md).**
 > §2 sketched `render(container) { /* mount your UI */ }`, which assumes the extension receives a live DOM container. That is **not implementable**: the host is a Deno/V8 isolate off the UI thread with no DOM, and a DOM node/closure cannot cross the process boundary (ADR-0025 §2). ADR-0026 corrects this — panels ship a **serializable view-model** painted by one generic core `<PanelHost>` (Model B), with bundled native SolidJS components as the first-party in-process model (Model A) and an iframe escape hatch reserved. The `contributes.panels` field, the dock registry reuse, and the everything-is-an-extension intent of this ADR all stand.
+
+> **⚠️ Addendum (2026-06-17) — status → Accepted (Phase 1 review).** `contributes.panels` + `sindri.ui.registerPanel` shipped on the Deno/V8 host. §3's transition plan is superseded on one point: the host arrived as **Deno/V8 ([ADR-0025](0025-js-extension-host-deno-v8.md))**, not QuickJS ([ADR-0015](0015-js-extension-host-runtime.md), itself superseded). Search/Git/Debug/Problems remain bundled placeholders in `builtins.ts` pending their feature phases — expected, not a regression. The everything-is-an-extension intent holds.
 
 ## Context
 

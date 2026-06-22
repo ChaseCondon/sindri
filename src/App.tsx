@@ -5,7 +5,9 @@ import {
   getActiveEditorView,
   openLooseInActiveGroup,
   openOrActivatePathInActiveGroup,
+  openCustomEditorInActiveGroup,
 } from "./editor/groups";
+import { matchDefaultCustomEditor } from "./editor/custom-editor-registry";
 import { registry, markSaved, registerSaveHandler } from "./editor/buffers";
 import { openFile, openFolder, openFilePath, saveFile, isFsaActive, isTauri } from "./lib/tauri";
 import { invoke } from "@tauri-apps/api/core";
@@ -17,7 +19,7 @@ import { registerBuiltinIconThemes } from "./icons/manifest";
 import { registerBuiltinUiPack } from "./icons/ui-icons";
 import { applyTheme, validateSelections, themeList, iconThemeList, uiPackList, uiThemeId, iconThemeId, uiPackId, setUiTheme, setIconTheme, setUiPack, setUiThemeId, setIconThemeId, setUiPackId } from "./theme/registry";
 import { SettingsModal } from "./workbench/settings/SettingsModal";
-import { rehydrateInstalledExtensions } from "./workbench/settings/MarketplaceSection";
+import { rehydrateInstalledExtensions } from "./workbench/settings/marketplace/store";
 import { initExtensionActivation } from "./extensions/activation";
 import { checkAndInstallUpdates, checkUpdatesOnly, pendingUpdateCount } from "./extensions/update-checker";
 import { startDevWatcher } from "./extensions/dev-watcher";
@@ -167,9 +169,16 @@ export function App() {
 
     registerOpenFileHandler(async (path) => {
       try {
-        const opened = await openFilePath(path);
-        openOrActivatePathInActiveGroup(opened.path!, opened.name, opened.contents);
-        setStatus(`Opened ${opened.name}`);
+        const customEditor = matchDefaultCustomEditor(path);
+        if (customEditor) {
+          const name = path.split(/[/\\]/).pop() ?? path;
+          openCustomEditorInActiveGroup(path, name, customEditor.viewType);
+          setStatus(`Opened ${name}`);
+        } else {
+          const opened = await openFilePath(path);
+          openOrActivatePathInActiveGroup(opened.path!, opened.name, opened.contents);
+          setStatus(`Opened ${opened.name}`);
+        }
       } catch (err) {
         setStatus(`Open failed: ${String(err)}`);
       }

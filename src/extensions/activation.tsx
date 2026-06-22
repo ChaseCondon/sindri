@@ -11,6 +11,7 @@ import { registerToolWindow } from "../workbench/layout";
 import { TreeViewHost } from "../workbench/panels/TreeViewHost";
 import { WebviewPanelHost } from "../workbench/panels/WebviewPanelHost";
 import { registerWebviewPanelHtml } from "../workbench/panels/webview-panel-store";
+import { addCustomEditorRegistration } from "../editor/custom-editor-registry";
 import { registerStatusBarItem, updateStatusBarItem, removeStatusBarItem } from "../statusbar/store";
 import { openQuickPick, updateQuickPickItems, closeQuickPick, type QuickPickItem } from "../quick-pick/store";
 import {
@@ -40,6 +41,18 @@ interface WebviewPanelContrib {
   defaultDock?: "left-top" | "left-bottom" | "right-top" | "right-bottom" | "bottom";
 }
 
+interface CustomEditorSelectorLocal {
+  scheme?: string;
+  language?: string;
+  pattern?: string;
+}
+interface CustomEditorContrib {
+  viewType: string;
+  displayName?: string;
+  selector?: CustomEditorSelectorLocal[];
+  priority?: "default" | "option";
+}
+
 interface ExtensionManifest {
   id?: string;
   name?: string;
@@ -47,12 +60,14 @@ interface ExtensionManifest {
   contributes?: {
     treeViews?: TreeViewContrib[];
     webviewPanels?: WebviewPanelContrib[];
+    customEditors?: CustomEditorContrib[];
   };
 }
 
 // IDs pre-registered from the manifest so dynamic registration events can skip them.
 const preRegisteredTreeViews = new Set<string>();
 const preRegisteredWebviewPanels = new Set<string>();
+const preRegisteredCustomEditors = new Set<string>();
 
 // Bundle dirs keyed by ext_id so dynamic icon paths can be resolved after activation.
 const extBundleDirs = new Map<string, string>();
@@ -176,6 +191,16 @@ export async function activateExtensionWithManifest(bundlePath: string): Promise
     const icon = await resolveIcon(wp.icon, bundleDir, ICON_TREE_VIEW);
     registerWebviewPanel(wp.id, wp.title, icon, wp.defaultDock ?? "right-top");
   }
+  for (const ce of manifest?.contributes?.customEditors ?? []) {
+    preRegisteredCustomEditors.add(ce.viewType);
+    addCustomEditorRegistration({
+      viewType: ce.viewType,
+      displayName: ce.displayName ?? ce.viewType,
+      selector: ce.selector ?? [],
+      priority: ce.priority ?? "default",
+      extId: extId ?? "",
+    });
+  }
 
   await activateExtension(bundlePath, extId, bundleDir);
 }
@@ -214,6 +239,16 @@ export async function activateExtensionFromSinxt(
     preRegisteredWebviewPanels.add(wp.id);
     const wpIcon = wp.icon?.trimStart().startsWith("<") ? wp.icon : ICON_TREE_VIEW;
     registerWebviewPanel(wp.id, wp.title, wpIcon, wp.defaultDock ?? "right-top");
+  }
+  for (const ce of (manifest.contributes as { customEditors?: CustomEditorContrib[] } | undefined)?.customEditors ?? []) {
+    preRegisteredCustomEditors.add(ce.viewType);
+    addCustomEditorRegistration({
+      viewType: ce.viewType,
+      displayName: ce.displayName ?? ce.viewType,
+      selector: ce.selector ?? [],
+      priority: ce.priority ?? "default",
+      extId,
+    });
   }
 
   await activateSinxtExtension(sinxtPath, extId);
@@ -304,5 +339,23 @@ export function initExtensionActivation(): void {
   });
   listenExtEvent("__sindri.ui.quickPickHide", (requestId) => {
     closeQuickPick(requestId);
+  });
+
+  // ADR-0028 — runtime custom editor registration (extension called registerEditor).
+  listenExtEvent("__sindri.ui.editorRegistered", (payload) => {
+    const data = JSON.parse(payload) as {
+      viewType: string;
+      selector?: Array<{ scheme?: string; language?: string; pattern?: string }>;
+      priority?: "default" | "option";
+      extId?: string;
+    };
+    if (preRegisteredCustomEditors.has(data.viewType)) return;
+    addCustomEditorRegistration({
+      viewType: data.viewType,
+      displayName: data.viewType,
+      selector: data.selector ?? [],
+      priority: data.priority ?? "default",
+      extId: data.extId ?? "",
+    });
   });
 }

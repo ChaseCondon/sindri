@@ -27,13 +27,13 @@ Format: lightweight [MADR](https://adr.github.io/madr/).
 | [0019](0019-theme-and-icon-system.md) | Theme & icon system (theme-as-data, dual UI/editor themes, extension-contributed) | Accepted |
 | [0020](0020-extension-distribution-and-marketplace.md) | Extension distribution, manifest & marketplace (git-repo registries) | Accepted · §3 index superseded by [0038](0038-manifest-type-and-id-resolution.md) |
 | [0021](0021-settings-surface.md) | Settings surface — core modal overlay over merged plugin config | Accepted |
-| [0022](0022-sidebar-panels-as-extensions.md) | Sidebar panels as extensions — all panels except Explorer/Terminal/Output are extension-contributed | Proposed |
+| [0022](0022-sidebar-panels-as-extensions.md) | Sidebar panels as extensions — all panels except Explorer/Terminal/Output are extension-contributed | Accepted · 2026-06-17 (Phase 1 review) |
 | [0023](0023-extension-configuration-contract.md) | Extension configuration contract — `contributes.configuration`, settings storage & generic renderer | Accepted |
 | [0024](0024-editor-decorations-api.md) | `sindri.editor` decorations API — static bundled features now, host decoration-providers later | Accepted |
 | [0025](0025-js-extension-host-deno-v8.md) | JS extension host runtime — Deno/V8, uniform per-isolate (supersedes 0015 §1–2) | Accepted |
 | [0026](0026-ui-panel-api.md) | `sindri.ui` panel & UI surface API — declarative APIs + webview escape hatch; surface taxonomy (A/B/C) | Revised — 2026-06-09 (VNode model → hybrid declarative + webview) |
 | [0027](0027-exec-capability-security.md) | Extension capability & exec security model — brokered spawn, arg-vector rule, declared-binary allowlist | Accepted |
-| [0028](0028-custom-editor-api.md) | `sindri.ui.registerEditor` — custom editor surface (surface B) | Reserved — seam only |
+| [0028](0028-custom-editor-api.md) | `sindri.ui.registerEditor` — custom editor surface (surface B) | Accepted |
 | [0029](0029-editor-overlay-api.md) | Editor overlay & widget API — surface C (extends ADR-0024) | Reserved — seam only |
 | [0030](0030-extension-output-logging.md) | Extension output & logging — `sindri.output` API, console auto-capture, Extension Logs panel | Accepted |
 | [0031](0031-resource-url-scheme.md) | Resource URL scheme — `sindri-resource://` custom Tauri protocol for extension bundle files | Accepted |
@@ -44,3 +44,6 @@ Format: lightweight [MADR](https://adr.github.io/madr/).
 | [0036](0036-native-binary-bundling.md) | Native binary bundling — `contributes.binaries` + brokered exec resolution | Accepted |
 | [0037](0037-extension-inspector-debugging.md) | Extension debugging — V8 Inspector / CDP gateway (on-demand, dev-gated, loopback) | Accepted |
 | [0038](0038-manifest-type-and-id-resolution.md) | Manifest `type` taxonomy & id-based registry resolution (supersedes 0020 §3, 0032 §6) | Accepted |
+| [0039](0039-project-license.md) | Project license — MIT OR Apache-2.0 (permissive, dual) | Accepted |
+| [0040](0040-extension-api-version-gate.md) | Extension API-version gate — `engines.sindri` range check at activate time | Accepted |
+| [0041](0041-tree-sitter-syntax-engine.md) | Tree-sitter syntax engine — WASM grammars (wasmtime), single-threaded Rust-core worker, stale-then-reconcile CM6 bridge | Accepted · 2026-06-17 (Phase 2 kickoff) |

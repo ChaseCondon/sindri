@@ -14,10 +14,14 @@ import {
   dragState,
   dragGrabOffsetX,
   dragTabWidth,
+  openOrActivatePathInActiveGroup,
+  openCustomEditorInActiveGroup,
   type GroupId,
 } from "./groups";
 import { registry } from "./buffers";
 import { openMenu } from "../workbench/ContextMenu";
+import { matchAllCustomEditors } from "./custom-editor-registry";
+import { openFilePath } from "../lib/tauri";
 
 interface Props {
   groupId: GroupId;
@@ -203,6 +207,41 @@ export function TabBar(props: Props) {
         { label: "Split Down",  action: () => { activateBufferInGroup(bufferId, props.groupId); splitGroup(props.groupId, "column"); } },
       );
     }
+
+    // Open With… — show alternative editors for this file (ADR-0028 §7)
+    const buf = registry.buffers[bufferId];
+    const filePath = buf?.path;
+    if (filePath) {
+      const isText = !buf || (buf.viewType ?? "text") === "text";
+      const alternatives = matchAllCustomEditors(filePath);
+      const name = filePath.split(/[/\\]/).pop() ?? filePath;
+
+      if (!isText) {
+        // Currently in a custom editor → offer "Open as Text"
+        items.push({
+          label: "Open as Text Editor",
+          action: async () => {
+            closeBufferInGroup(bufferId, props.groupId);
+            try {
+              const opened = await openFilePath(filePath);
+              openOrActivatePathInActiveGroup(opened.path!, opened.name, opened.contents);
+            } catch { /* ignore */ }
+          },
+        });
+      } else if (alternatives.length > 0) {
+        // Currently text → offer available custom editors
+        for (const alt of alternatives) {
+          items.push({
+            label: `Open With: ${alt.displayName}`,
+            action: () => {
+              closeBufferInGroup(bufferId, props.groupId);
+              openCustomEditorInActiveGroup(filePath, name, alt.viewType);
+            },
+          });
+        }
+      }
+    }
+
     openMenu(e.clientX, e.clientY, items);
   }
 

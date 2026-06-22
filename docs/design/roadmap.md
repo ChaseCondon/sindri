@@ -104,13 +104,20 @@ The extension API is not real until first-party features are built on it. Each s
 
 **1.5o — `folderNamesExpanded` icon theme field** — file tree renderer reads `folderNamesExpanded` (alongside `folderNames`) from `icons.json`; when a folder is expanded it uses the per-type open icon ID rather than always falling back to `defaults.folderOpen`. Required for per-type open folder icons (e.g. an expanded `tests/` folder shows a red outline folder, not the default blue). One schema field + one renderer lookup. Unblocks the full filled-closed / outline-open folder type system in sindri-file-icons.
 
-**1.5p — Icon theme marketplace previewer** — the extension detail panel in the Marketplace shows a grid of representative icons from the set with a search bar that filters by icon name/keyword (e.g. typing "ts" highlights the TypeScript file icon, "folder" shows all folder variants). Sourced from `icons.json` at preview time; no runtime install required to browse. The grid should show file icons, folder icons (closed and open), and UI icons (if a UI pack is bundled). Pairs with 1.5n (inheritance) so inherited themes also render correctly in the previewer.
+**1.5p — Icon theme marketplace previewer** ✅ — `IconThemePreview` component in `MarketplaceSection.tsx`: fetches `icons.json` at preview time (no install required), builds a deduped grid (folders first, then file types by language priority), searchable by label. Inheriting themes (ADR-0032) redirect to the base's `icons.json`. `<img src>` approach for path-based SVGs; data-URI for inline SVG.
 
-**1.5q — Extended colour theme previewer** — colour theme manifests gain an optional `previews` field (already on `ThemeContribution`) allowing per-language sample code to be supplied directly in the manifest. Additionally, the detail panel exposes a language dropdown so users can switch the preview snippet between all contributed languages (TypeScript, Rust, Python, etc.) without the theme author having to hardcode them all. Default baked-in snippets remain as fallback. Complements 1.5p — both theme and icon themes get rich preview surfaces.
+**1.5q — Extended colour theme previewer** ✅ — `ThemeContribution.previews?: Record<string, string>` field in `manifest.ts`; `ThemePreview` component renders a language dropdown sourced from manifest-declared languages (falling back to the full `DEFAULT_PREVIEW_LANGS` list). Already shipped; aurora-theme uses the `previews` field in production.
 
 **1.5r — Hover-anchored popover surface** — `sindri.ui.createStatusBarItem` gains an `anchorPanelId?: string` option: when set, hovering the status bar chip opens a lightweight floating panel anchored directly above the chip (not a fixed-position overlay), and closes on mouse leave + a small grace delay. The floating panel is scoped by the extension's registered webview panel id. This is the proper home for the `sindri-now-playing` full-player popup (track art, scrubber, controls) — currently the player opens in the bottom dock as a stopgap. Design constraint: no native OS window — the panel renders inside the Tauri WebView at `position: fixed`, repositioned to the chip's `getBoundingClientRect()` on open. **Dogfood:** now-playing player floats above the `♪ Track` status bar chip on hover.
 
 > **Webview sandbox — by design:** Extension webviews run in a null-origin `<iframe>` with no access to `sindri.*` APIs. All data exchange goes through `postMessage`. This is intentional: the sandboxed iframe is the security boundary that keeps webview code out of the host process. It also means `sindri.env.exec` is deliberately unavailable inside webviews — extensions that need exec results in their webview must call exec in the host script and relay the output via `postMessage`. Document this pattern clearly in CONTRIBUTING.md and the scaffold template's generated README.
+
+### 1.6 Engineering hardening (Phase 1 review follow-ups)
+
+> Non-gating deferrals from the [Phase 1 End-of-Phase Review](../reviews/phase-1-review.md). The review's must-fix items were cleared before Phase 2 began; these are tracked follow-ups to tackle as the surfaces they touch get extended.
+
+- **Extension API-version compatibility gate** — extensions declare the `@sindri/api` version they target (`engines.sindri` semver); the host refuses or warns on an incompatible major. A ruinous-to-retrofit seam — land it before the third-party ecosystem opens. (review C2-apiver / C4)
+- **God-file decomposition** — split `exthost/runtime.rs` (1823), `sindri-cli/src/ext.rs` (1205), `MarketplaceSection.tsx` (1633), `SettingsModal.tsx` (1297) into focused modules and break monolithic `styles.css` (3767) into modular stylesheets. Single-responsibility, not line-count theatre. (review B1/B2)
 
 🚦 **End-of-phase review** — hard gate (full review + remediation roadmap) before the next phase. Protocol: [end-of-phase-review.md](../process/end-of-phase-review.md).
 
@@ -129,22 +136,33 @@ The extension API is not real until first-party features are built on it. Each s
 
 ---
 
-## Phase 3 — Project model + core IDE surfaces
+## Phase 3 — Core IDE surfaces
 
-> **Why here:** `sindri.toml` scopes settings, auto-installs extensions, and defines environments. Terminal, search, and a real dockable layout are needed before the IDE is usable for real development work.
+> **Why here:** Terminal, search, and a real dockable layout are needed before the IDE is usable for real development work. None of these require a project model — they scope to the open folder root (or `~` when no folder is open), and the terminal shell is a user setting. `sindri.toml` is deferred to Phase 5 where the SAP adapter bindings are its first real consumers.
 
-- **`sindri.toml` detection and parsing** (ADR-0012) — detect at folder open; parse `[project]`, `[environments]`, `[toolchains]`, `[run]`, `[test]`, `[extensions]`. Auto-write `.sindri/.gitignore`. Implicit projects (no `sindri.toml`) stay valid.
 - **Terminal panel** — OS shell via Tauri PTY. Profiles: WSL, bash, zsh, PowerShell, fish. Tab bar, multiple sessions. Needed for the build loop.
 - **Split panes v0.2** (ADR-0018) — `DockId` migration to support left/right primary + secondary rails, bottom + top dock. Tool-window drag between all zones.
+- **Editor custom tabs — `sindri.ui.registerEditor`** (ADR-0028, surface B) — **promoted here from 3.3 (2026-06-22).** Let an extension take over the editor area for a file type/URI and render a custom **editor tab** (Tier 2 webview hosted in an editor leaf, reusing [WebviewPanelHost](../../src/workbench/panels/WebviewPanelHost.tsx)) instead of the CM6 text view. *Why now:* the editor group/leaf/tab model was just generalized by Split panes v0.1/v0.2 and the webview-panel host already exists, so this is the natural continuation while that context is hot — and it unblocks the deferred `sindri-csv-grid` (the CSV-button-opens-an-editor-tab smoke test) plus the first-party image/markdown viewers below. **Scope:** teach the editor leaf ([EditorGroup.tsx](../../src/editor/EditorGroup.tsx)) to host non-CM content keyed by `bufferId` + viewType; an "Open With… / default editor" binding; lift ADR-0028 from *Reserved seam* to a designed ADR as part of this work. Must respect the ADR-0016 occurrence-keyed model and ADR-0018 float/serialize seams.
 - **Content search** — `grep-searcher` + `grep-regex` in Rust core, streamed to a Search panel. File-glob + regex filter. Results click-to-navigate.
 - **Fuzzy file finder** — indexed file-name search across the workspace tree (`cmd+P` / `ctrl+P`). Separate from symbol search (which needs LSP); this is a pure filesystem scan with fuzzy ranking.
 - **Symbol search** — workspace symbol index (fed by LSP `workspace/symbol` once Phase 4 lands). Command-palette integration.
+
+### Terminal — future improvements (backlog)
+
+Deferred from the Phase 3 terminal polish pass (2026-06-22). The terminal ships functional and polished; these are additive enhancements, not blockers. **Clickable web-links (`@xterm/addon-web-links`) shipped** in the polish pass (matches real `http(s)://` URLs only — bare domains like `google.com` are intentionally not linkified, same as VS Code).
+
+- **WebGL renderer** (`@xterm/addon-webgl`) — ⚠️ *attempted and reverted.* In WKWebView it regressed rendering: stale glyph atlas → wrong font for output rendered after late font-load, plus top-row clipping and sub-cell sizing mismatch. Revisit only with a fix for atlas-rebuild-on-font-load + correct canvas sizing; the DOM renderer is the stable default.
+- **Search in scrollback** (`@xterm/addon-search`) — ⌘F find within terminal output.
+- **Shell-integration navigation (OSC 133)** — leverage the `]133;A/B/C/D` markers shells already emit (p10k, starship, etc.) for jump-to-prev/next-prompt, per-command exit-code badges, and select-command-output.
+- **Right-click context menu** — copy / paste / clear, for parity with mainstream IDE terminals.
+- **Split terminals** — multiple terminals side-by-side within the panel (distinct from the workbench split-panes work).
+- **Session restore** — persist cwd + reopen tabs across reloads.
 
 ### 3.3 Core built-in features (surfaces B + C)
 
 These are **first-party core features expected of an IDE** — not extension samples. They ship when the relevant surface APIs and infrastructure are ready; they are listed here so they are in the north-star scope and not accidentally punted to "maybe someday."
 
-**Surface B — editor-area / custom editors** (ADR-0028 `registerEditor` seam):
+**Surface B — editor-area / custom editors** — the `registerEditor` API itself was **promoted to a top-level Phase 3 item** (see above); these are the **first-party consumers** built on it once it lands:
 
 | Feature | File type / trigger | Notes |
 |---|---|---|
@@ -187,8 +205,9 @@ These are **first-party core features expected of an IDE** — not extension sam
 
 ## Phase 5 — SAP / Test runner
 
-> **Why here:** "Built-in IDE frameworks for run/test" is the product wedge (vision §3). A beautiful, consistent test UI that works identically across languages is the thing neither VSCode nor Zed delivers.
+> **Why here:** "Built-in IDE frameworks for run/test" is the product wedge (vision §3). A beautiful, consistent test UI that works identically across languages is the thing neither VSCode nor Zed delivers. `sindri.toml` opens this phase because `[toolchains]`, `[run]`, and `[test]` are its first real consumers — the SAP adapter bindings need the project file to exist and be parsed before auto-discovery can work.
 
+- **`sindri.toml` detection and parsing** (ADR-0012) — detect at folder open; parse `[project]`, `[environments]`, `[toolchains]`, `[run]`, `[test]`, `[extensions]`. Auto-write `.sindri/.gitignore`. Implicit projects (no `sindri.toml`) stay valid. Workspace root for all Phase 3 features was the open folder; `sindri.toml` is an *additive* layer scoped here because SAP needs it.
 - **SAP implementation** (ADR-0014) — `discover`, `plan`, `onOutput`, `onExit`, `debugConfig` adapter contract. Rust core owns process spawning; adapters are pure JS.
 - **`sindri.tasks.registerAdapter` op** — extension registers a SAP adapter.
 - **Test runner UI panel** — tree of suites + cases, run / run-all / run-failed, live streaming output, pass/fail gutter markers, click-to-jump on failure, timing.
@@ -220,6 +239,9 @@ These are **first-party core features expected of an IDE** — not extension sam
 - **Extension signing + verification** (ADR-0020) — publisher keypairs, `SHA-256` bundle signing, verifier on install. Trust levels: Sindri-signed (first-party) → community TOFU → unsigned warning. The `.sinxt` packaging pipeline groundwork lands here (the full marketplace backend is Phase 14).
 - **Workspace Trust UI** — "Do you trust the extensions in this workspace?" prompt on first open of an unrecognized workspace. Restricts exec and net permissions for untrusted workspaces until the user grants trust.
 - **Marketplace trust chain** — the broker's allowlist enforcement (ADR-0027) is validated against the signed manifest; a tampered `manifest.json` fails signature verification before the allowlist is even consulted.
+- **Extension crash & dispose discipline** — define the host's error boundary when an isolate throws on activation, and guarantee contribution teardown (panels, status-bar items, decorations, listeners) on disable/uninstall. (Phase 1 review C2-crash)
+- **Extension state-persistence API** — `globalState` / `workspaceState` key-value store for extension-owned state, distinct from user configuration (ADR-0023). (Phase 1 review C2-state)
+- **Highlight-query failure observability** (Phase 2 review · B9/C6) — surface a debug-log when a tree-sitter viewport query yields nothing because `Query::new`/parse failed, instead of the silent `.catch(() => {})` / `Err → vec![]` swallow in the syntax bridge. Fold into ADR-0030 output logging. Back-ref: [phase-2-review.md](../reviews/phase-2-review.md).
 
 🚦 **End-of-phase review** — hard gate (full review + remediation roadmap) before the next phase. Protocol: [end-of-phase-review.md](../process/end-of-phase-review.md).
 
@@ -235,6 +257,7 @@ These are **first-party core features expected of an IDE** — not extension sam
   - `sindri.rust.grammar` — tree-sitter-rust WASM, contributed via `contributes.grammars`
   - `sindri.rust.tasks` — cargo build / test / run SAP adapter
   - `sindri.rust.config` — Clippy, rustfmt settings wired to `configStore`
+- **Dynamic file→`languageId` association** (Phase 2 review · ADR-0041 §5 addendum) — drive file-extension → `languageId` from contributed grammar `extensions` (worker grammar registry → frontend, layered over the hardcoded `languageIdFor()` defaults), retiring the `#[allow(dead_code)]` on `GrammarDef.extensions`. Until this lands, a grammar for a language outside the ~13-entry hardcoded switch registers but never highlights. Land it here so the language-pack pattern is honest from the first real pack. Back-ref: [phase-2-review.md](../reviews/phase-2-review.md) A1/A2a/C3.
 - **Project setup wizard** — launch screen: recent projects, "New project" templates (contributed by extensions), "Clone from git". Floating window (ADR-0018 v0.3).
 - **`sindri` CLI** — `sindri open [path]` opens a project from the terminal (`code .` equivalent). `sindri ext create/build/install` are the extension authoring tools (scaffold and build land in 1.5l; `install <url-or-path>` lands here, consuming the `.sinxt` pipeline from 1.5d/e). Distributed with every platform package; shell integration added to macOS/Linux/Windows installers. This is the terminal-native entry point for the daily loop — no Finder/Explorer required.
 - **`sindri ext init-ci`** — scaffolds `.github/workflows/{pr-check,release,nightly}.yml` in an extension repo, configured to call the Sindri-owned reusable workflow (see 14.1). Detects single-extension vs. monorepo layout, installs Changesets, sets branch protection via `gh`. Zero config for the author: run once, push, done. Ships bundled in the Phase 8 `sindri` CLI.

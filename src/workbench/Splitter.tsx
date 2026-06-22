@@ -10,6 +10,7 @@ export function Splitter(props: Props) {
   function onPointerDown(e: PointerEvent) {
     const el = e.currentTarget as HTMLElement;
     el.setPointerCapture(e.pointerId);
+    document.body.classList.add("user-dragging");
 
     const startPos = props.orientation === "col" ? e.clientX : e.clientY;
     const startSize = layout.dockSizes[props.dock] ?? (props.orientation === "col" ? 240 : 200);
@@ -24,6 +25,7 @@ export function Splitter(props: Props) {
     }
 
     function onUp() {
+      document.body.classList.remove("user-dragging");
       el.removeEventListener("pointermove", onMove);
       el.removeEventListener("pointerup", onUp);
     }

@@ -21,7 +21,27 @@ interface DecorationFeature {
   build(): Extension;
 }
 
+const DEFAULT_EDITOR_FONT =
+  "'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, monospace";
+
 const DECORATION_FEATURES: DecorationFeature[] = [
+  {
+    id: "editor-font",
+    compartment: new Compartment(),
+    configKeys: ["editor.fontFamily", "editor.fontLigatures"],
+    build() {
+      const family = (configStore.get<string>("editor.fontFamily") ?? "").trim();
+      const stack = family ? `"${family}", ${DEFAULT_EDITOR_FONT}` : DEFAULT_EDITOR_FONT;
+      const ligatures = configStore.get<boolean>("editor.fontLigatures");
+      return EditorView.theme({
+        ".cm-content": {
+          fontFamily: stack,
+          fontVariantLigatures: ligatures ? "normal" : "none",
+          fontFeatureSettings: ligatures ? "normal" : '"liga" 0, "calt" 0',
+        },
+      });
+    },
+  },
   {
     id: "rainbow-brackets",
     compartment: new Compartment(),

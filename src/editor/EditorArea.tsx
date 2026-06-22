@@ -1,4 +1,4 @@
-import { For, Show, createSignal } from "solid-js";
+import { For, Show, createSignal, createMemo } from "solid-js";
 import {
   groupStore,
   setActiveGroup,
@@ -11,8 +11,10 @@ import {
   type SplitNode,
   type SplitSplitNode,
 } from "./groups";
+import { registry, occKey } from "./buffers";
 import { TabBar } from "./TabBar";
 import { EditorGroup } from "./EditorGroup";
+import { WebviewEditorHost } from "./WebviewEditorHost";
 
 export function EditorArea() {
   return <SplitNodeView node={groupStore.root} />;
@@ -38,6 +40,7 @@ function SplitView(props: { node: SplitSplitNode }) {
   function onResizerDown(e: PointerEvent, index: number) {
     const el = e.currentTarget as HTMLElement;
     el.setPointerCapture(e.pointerId);
+    document.body.classList.add("user-dragging");
 
     const startPos = isRow() ? e.clientX : e.clientY;
     const startSizes = [...props.node.sizes];
@@ -55,6 +58,7 @@ function SplitView(props: { node: SplitSplitNode }) {
     }
 
     function onUp() {
+      document.body.classList.remove("user-dragging");
       el.removeEventListener("pointermove", onMove);
       el.removeEventListener("pointerup", onUp);
     }
@@ -141,6 +145,23 @@ function LeafView(props: { groupId: GroupId }) {
 
   const group = () => groupStore.groups[props.groupId];
   const isEmpty = () => (group()?.bufferIds.length ?? 0) === 0;
+  const activeBufferId = () => group()?.activeBufferId ?? "";
+  const activeBuf = () => registry.buffers[activeBufferId()];
+  const isActiveText = () => !activeBuf() || (activeBuf()?.viewType ?? "text") === "text";
+
+  // Custom-editor buffers currently in this group — drives keep-alive iframe set.
+  const customBufferIds = createMemo(() =>
+    (group()?.bufferIds ?? []).filter(
+      (id) => (registry.buffers[id]?.viewType ?? "text") !== "text",
+    ),
+  );
+
+  const editorBodyStyle = (visible: boolean) => ({
+    display: visible ? "flex" : "none",
+    flex: "1 1 0%",
+    "min-height": "0",
+    overflow: "hidden",
+  });
 
   return (
     <div
@@ -149,13 +170,32 @@ function LeafView(props: { groupId: GroupId }) {
     >
       <Show when={!isEmpty()} fallback={<WelcomeScreen />}>
         <TabBar groupId={props.groupId} />
-        <EditorGroup groupId={props.groupId} />
+        {/* CM text editor — always mounted once, shown only when active buffer is text */}
+        <div style={editorBodyStyle(isActiveText())}>
+          <EditorGroup groupId={props.groupId} />
+        </div>
+        {/* Custom editor instances — one iframe per occurrence; kept alive, show/hide */}
+        <For each={customBufferIds()}>
+          {(bufferId) => {
+            const buf = () => registry.buffers[bufferId];
+            const isVisible = () => activeBufferId() === bufferId;
+            return (
+              <div style={editorBodyStyle(isVisible())}>
+                <WebviewEditorHost
+                  instanceId={occKey(props.groupId, bufferId)}
+                  bufferId={bufferId}
+                  viewType={buf()?.viewType ?? ""}
+                />
+              </div>
+            );
+          }}
+        </For>
       </Show>
 
       {/* Drop overlay — sits below the tab bar (top: 35px) so tab bar handles its own events.
           Shown for all drags; center zone hidden for own-group (splitting to same group = move). */}
       <Show when={isDragging()}>
-        <div class="drop-overlay">
+        <div class={`drop-overlay${isEmpty() ? " drop-overlay-full" : ""}`}>
           <div {...zoneProps("north")} />
           <div {...zoneProps("south")} />
           <div {...zoneProps("west")} />

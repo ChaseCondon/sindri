@@ -13,9 +13,9 @@ import {
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { bracketMatching, indentOnInput } from "@codemirror/language";
 import { buildDecorationCompartmentExts } from "./decoration-registry";
+import { treeSitterHighlighting } from "./syntax";
 import { javascript } from "@codemirror/lang-javascript";
 import { python } from "@codemirror/lang-python";
-import { rust } from "@codemirror/lang-rust";
 import { json } from "@codemirror/lang-json";
 import { html } from "@codemirror/lang-html";
 import { css } from "@codemirror/lang-css";
@@ -32,6 +32,7 @@ export interface BufferMeta {
   path: string | null;
   name: string;
   dirty: boolean;
+  viewType: string; // "text" = CM6; anything else = custom editor (ADR-0028)
 }
 
 interface BufferRegistry {
@@ -104,13 +105,13 @@ export function languageFor(name: string) {
   switch (ext) {
     case "js":   return javascript({ jsx: true });
     case "jsx":  return javascript({ jsx: true });
-    case "ts":   return javascript({ typescript: true });
-    case "tsx":  return javascript({ typescript: true, jsx: true });
+    case "ts":   return [];  // tree-sitter handles highlighting
+    case "tsx":  return [];  // tree-sitter handles highlighting
     case "mjs":
     case "cjs":  return javascript();
     case "py":
     case "pyw":  return python();
-    case "rs":   return rust();
+    case "rs":   return [];  // tree-sitter handles highlighting
     case "json":
     case "jsonc": return json();
     case "html":
@@ -147,6 +148,7 @@ export function buildEditorState(bufferId: string, doc: string, name: string): E
       indentOnInput(),
       bracketMatching(),
       ...buildDecorationCompartmentExts(),
+      treeSitterHighlighting(bufferId, languageIdFor(name)),
       languageFor(name),
       // Build extension fresh from the plain ThemeDef reference — never from a
       // SolidJS proxy and never dependent on applyTheme() having run first.
@@ -188,10 +190,10 @@ export function buildEditorState(bufferId: string, doc: string, name: string): E
 // Registry actions
 // ---------------------------------------------------------------------------
 
-export function createBuffer(id: string, path: string | null, name: string, contents: string): void {
+export function createBuffer(id: string, path: string | null, name: string, contents: string, viewType = "text"): void {
   savedTexts.set(id, contents);
   docVersions.set(id, 0);
-  setRegistry("buffers", id, { id, path, name, dirty: false });
+  setRegistry("buffers", id, { id, path, name, dirty: false, viewType });
   for (const fn of _onBufferCreatedCbs) fn(id, path, name);
 }
 

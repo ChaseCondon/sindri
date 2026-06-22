@@ -121,6 +121,7 @@ export function startDragGhost(
   }
   _ghostEl.appendChild(span);
   document.body.appendChild(_ghostEl);
+  document.body.classList.add("user-dragging");
 }
 
 export function updateDragGhostPos(x: number, y?: number): void {
@@ -133,6 +134,7 @@ export function updateDragGhostPos(x: number, y?: number): void {
 export function endDrag(): void {
   _ghostEl?.remove();
   _ghostEl = null;
+  document.body.classList.remove("user-dragging");
   setDragState(null);
 }
 
@@ -149,19 +151,21 @@ export function activateBufferInGroup(bufferId: string, groupId: GroupId): void 
   setActiveGroup(groupId);
 }
 
-/** Open (or re-activate) a buffer in a group. Creates buffer+occurrence state if new. */
+/** Open (or re-activate) a buffer in a group. Creates buffer+occurrence state if new.
+ *  viewType defaults to "text"; custom editors skip EditorState creation (ADR-0028). */
 export function openBufferInGroup(
   bufferId: string,
   groupId: GroupId,
   doc: string,
   name: string,
   path: string | null,
+  viewType = "text",
 ): void {
   if (!registry.buffers[bufferId]) {
-    createBuffer(bufferId, path, name, doc);
+    createBuffer(bufferId, path, name, doc, viewType);
   }
   const ok = occKey(groupId, bufferId);
-  if (!editorStates.has(ok)) {
+  if (viewType === "text" && !editorStates.has(ok)) {
     editorStates.set(ok, buildEditorState(bufferId, doc, name));
   }
   // Single produce() ensures bufferIds + activeBufferId update atomically —
@@ -194,6 +198,29 @@ export function openOrActivatePathInActiveGroup(
     }
   }
   openBufferInGroup(path, groupStore.activeGroup, contents, name, path);
+}
+
+/** Open a custom editor for a file; re-activates any existing occurrence (ADR-0028). */
+export function openCustomEditorInActiveGroup(
+  path: string,
+  name: string,
+  viewType: string,
+): void {
+  // Re-activate if already open with the same viewType (dedup by path+viewType, ADR-0028 §7).
+  const existing = Object.values(registry.buffers).find(
+    (b) => b.path === path && b.viewType === viewType,
+  );
+  if (existing) {
+    for (const [gid, group] of Object.entries(groupStore.groups)) {
+      if (group.bufferIds.includes(existing.id)) {
+        activateBufferInGroup(existing.id, gid as GroupId);
+        return;
+      }
+    }
+  }
+  // Stable bufferId keyed by path+viewType so re-opens after close keep the same id.
+  const bufferId = `${viewType}:${path}`;
+  openBufferInGroup(bufferId, groupStore.activeGroup, "", name, path, viewType);
 }
 
 /** Open a loose (unsaved) buffer in the active group. */
@@ -249,13 +276,17 @@ export function splitGroup(groupId: GroupId, dir: "row" | "column"): void {
 
   setGroupStore(
     produce((s) => {
-      // Move occurrence data to the new group
+      // Move occurrence data to the new group (text buffers only — ADR-0028)
       const oldOk = occKey(groupId, bufferId);
       const newOk = occKey(newGroupId, bufferId);
-      const state = editorStates.get(oldOk);
-      const scroll = scrollTops.get(oldOk);
-      if (state) { editorStates.set(newOk, state); editorStates.delete(oldOk); }
-      if (scroll !== undefined) { scrollTops.set(newOk, scroll); scrollTops.delete(oldOk); }
+      if (registry.buffers[bufferId]?.viewType !== "text") {
+        // Custom editor: no EditorState to move; WebviewEditorHost will re-resolve
+      } else {
+        const state = editorStates.get(oldOk);
+        const scroll = scrollTops.get(oldOk);
+        if (state) { editorStates.set(newOk, state); editorStates.delete(oldOk); }
+        if (scroll !== undefined) { scrollTops.set(newOk, scroll); scrollTops.delete(oldOk); }
+      }
 
       // Update source group
       s.groups[groupId].bufferIds = s.groups[groupId].bufferIds.filter((id) => id !== bufferId);
@@ -284,10 +315,14 @@ export function moveBufferToGroup(bufferId: string, fromGroupId: GroupId, toGrou
 
       const fromOk = occKey(fromGroupId, bufferId);
       const toOk = occKey(toGroupId, bufferId);
-      const state = editorStates.get(fromOk);
-      const scroll = scrollTops.get(fromOk);
-      if (state) { editorStates.set(toOk, state); editorStates.delete(fromOk); }
-      if (scroll !== undefined) { scrollTops.set(toOk, scroll); scrollTops.delete(fromOk); }
+      if (registry.buffers[bufferId]?.viewType !== "text") {
+        // Custom editor: no EditorState to move; WebviewEditorHost will re-resolve
+      } else {
+        const state = editorStates.get(fromOk);
+        const scroll = scrollTops.get(fromOk);
+        if (state) { editorStates.set(toOk, state); editorStates.delete(fromOk); }
+        if (scroll !== undefined) { scrollTops.set(toOk, scroll); scrollTops.delete(fromOk); }
+      }
 
       from.bufferIds = from.bufferIds.filter((id) => id !== bufferId);
       from.activeBufferId = from.bufferIds[from.bufferIds.length - 1] ?? "";
@@ -322,10 +357,14 @@ export function splitGroupWithBuffer(
 
       const fromOk = occKey(fromGroupId, bufferId);
       const toOk = occKey(newGroupId, bufferId);
-      const state = editorStates.get(fromOk);
-      const scroll = scrollTops.get(fromOk);
-      if (state) { editorStates.set(toOk, state); editorStates.delete(fromOk); }
-      if (scroll !== undefined) { scrollTops.set(toOk, scroll); scrollTops.delete(fromOk); }
+      if (registry.buffers[bufferId]?.viewType !== "text") {
+        // Custom editor: no EditorState to move; WebviewEditorHost will re-resolve
+      } else {
+        const state = editorStates.get(fromOk);
+        const scroll = scrollTops.get(fromOk);
+        if (state) { editorStates.set(toOk, state); editorStates.delete(fromOk); }
+        if (scroll !== undefined) { scrollTops.set(toOk, scroll); scrollTops.delete(fromOk); }
+      }
 
       from.bufferIds = from.bufferIds.filter((id) => id !== bufferId);
       from.activeBufferId = from.bufferIds[from.bufferIds.length - 1] ?? "";

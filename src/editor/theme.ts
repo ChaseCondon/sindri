@@ -11,6 +11,7 @@ import type { ThemeDef } from "../theme/tokens";
 export function buildCM6Extension(def: ThemeDef): Extension {
   const e = def.editor;
   const s = def.syntax;
+  const se = def.syntaxExtended;
 
   const editorTheme = EditorView.theme(
     {
@@ -22,8 +23,8 @@ export function buildCM6Extension(def: ThemeDef): Extension {
       },
       ".cm-content": {
         caretColor: e.caret,
-        fontFamily:
-          "'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, monospace",
+        // font-family + ligatures are owned by the editor-font decoration feature
+        // (decoration-registry.ts) so they react to settings without a theme rebuild.
         padding: "8px 0",
       },
       ".cm-cursor, .cm-dropCursor": { borderLeftColor: e.caret },
@@ -74,6 +75,25 @@ export function buildCM6Extension(def: ThemeDef): Extension {
       ".cm-indent-guide-mono": {
         color: def.kind === "dark" ? "rgba(255,255,255,0.20)" : "rgba(0,0,0,0.22)",
       },
+      // ── Tree-sitter token classes (ADR-0041 §6) ──────────────────────────
+      ".cm-ts-keyword":    { color: s.keyword.color, ...(s.keyword.fontStyle ? { fontStyle: s.keyword.fontStyle } : {}) },
+      ".cm-ts-function":   { color: s.function.color },
+      ".cm-ts-string":     { color: s.string.color },
+      ".cm-ts-comment":    { color: s.comment.color, fontStyle: s.comment.fontStyle ?? "italic" },
+      ".cm-ts-type":       { color: s.type.color },
+      ".cm-ts-variable":   { color: s.variable.color },
+      ".cm-ts-number":     { color: s.number.color },
+      ".cm-ts-constant":   { color: (se?.constant ?? s.number).color },
+      ".cm-ts-operator":   { color: s.operator.color },
+      ".cm-ts-property":   { color: s.property.color },
+      ".cm-ts-punctuation":{ color: s.punctuation.color },
+      ".cm-ts-tag":        { color: s.tag.color },
+      ".cm-ts-attribute":  { color: s.attribute.color },
+      ".cm-ts-namespace":  { color: (se?.namespace ?? s.type).color },
+      ".cm-ts-constructor":{ color: s.function.color },
+      ".cm-ts-module":     { color: (se?.namespace ?? s.type).color },
+      ".cm-ts-label":      { color: s.variable.color },
+      ".cm-ts-embedded":   { color: s.string.color },
     },
     { dark: def.kind === "dark" },
   );
