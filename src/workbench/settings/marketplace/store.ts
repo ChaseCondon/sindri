@@ -9,7 +9,7 @@ import { unregisterToolWindow } from "../../layout";
 import { removeExtensionLogs, registerExtension as registerLogChannel } from "../../panels/ext-logs-store";
 import type { ThemeDef } from "../../../theme/tokens";
 import {
-  registryRepos, installedExtensions, installExtension, uninstallExtension,
+  registryRepos, installedExtensions, installExtension, updateInstalledExtension, uninstallExtension,
   type InstalledRecord,
 } from "../store";
 import { invoke } from "@tauri-apps/api/core";
@@ -278,7 +278,11 @@ export async function doInstall(entry: MarketplaceEntry): Promise<boolean> {
     const client = getRegistryClient();
     const sinxtPath = await client.downloadExtension(item, item.manifest.version, repoUrl);
     if (sinxtPath) {
-      installExtension(id, repoUrl, item.folderPath, item.manifest, sinxtPath);
+      if (installedExtensions().some((r) => r.id === id)) {
+        updateInstalledExtension(id, item.manifest, sinxtPath);
+      } else {
+        installExtension(id, repoUrl, item.folderPath, item.manifest, sinxtPath);
+      }
       await activateExtensionFromSinxt(sinxtPath, item.manifest);
       return true;
     }
