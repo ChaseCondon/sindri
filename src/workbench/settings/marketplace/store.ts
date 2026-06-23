@@ -15,6 +15,7 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { isTauri } from "../../../lib/tauri";
 import { rebroadcastActiveEditor } from "../../../editor/editor-state-bridge";
+import { removeCustomEditorRegistrationsByExtId } from "../../../editor/custom-editor-registry";
 import bundledExtensions from "../../../../core-extensions/bundled-extensions.json";
 
 // ---------------------------------------------------------------------------
@@ -278,7 +279,11 @@ export async function doInstall(entry: MarketplaceEntry): Promise<boolean> {
     const client = getRegistryClient();
     const sinxtPath = await client.downloadExtension(item, item.manifest.version, repoUrl);
     if (sinxtPath) {
-      if (installedExtensions().some((r) => r.id === id)) {
+      const isUpdate = installedExtensions().some((r) => r.id === id);
+      if (isUpdate) {
+        // Deactivate the old isolate before activating the new sinxt so there
+        // are no duplicate editorOpenRequest listeners from the old version.
+        if (isTauri()) await invoke("ext_deactivate", { extId: id }).catch(() => {});
         updateInstalledExtension(id, item.manifest, sinxtPath);
       } else {
         installExtension(id, repoUrl, item.folderPath, item.manifest, sinxtPath);
@@ -314,6 +319,7 @@ export function doUninstall(entry: MarketplaceEntry): void {
   for (const uiPack of contributes?.uiIconPacks ?? []) unregisterUiIconPack(uiPack.id);
   for (const wp of contributes?.webviewPanels ?? []) unregisterToolWindow(wp.id);
   for (const tv of contributes?.treeViews ?? []) unregisterToolWindow(tv.id);
+  removeCustomEditorRegistrationsByExtId(id);
   removeExtensionLogs(id);
   uninstallExtension(id);
   if (isTauri()) invoke("ext_deactivate", { extId: id }).catch(() => {});

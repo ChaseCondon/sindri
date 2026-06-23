@@ -33,6 +33,15 @@ export function matchDefaultCustomEditor(path: string): CustomEditorRegistration
 }
 
 /** All matching registrations (any priority) — used for "Open With…" list. */
+/** Remove all registrations contributed by a given extension (called on uninstall). */
+export function removeCustomEditorRegistrationsByExtId(extId: string): void {
+  const before = _registrations.length;
+  _registrations.splice(0, _registrations.length, ..._registrations.filter(r => r.extId !== extId));
+  if (_registrations.length !== before) {
+    console.log(`[sindri] removed ${before - _registrations.length} customEditor registration(s) for extId=${extId}`);
+  }
+}
+
 export function matchAllCustomEditors(path: string): CustomEditorRegistration[] {
   const name = basename(path);
   return _registrations.filter((reg) => _selectorMatches(reg.selector, path, name));
