@@ -418,12 +418,16 @@ globalThis.sindri = {
 
                 // The webview handle the extension receives in resolveCustomEditor.
                 let _html = '';
+                let _htmlEmitted = false;
                 let _inboundHandler = null;
                 const webview = {
                     get html() { return _html; },
                     set html(v) {
                         _html = String(v);
+                        // Emit immediately for async providers that set html during an await.
+                        console.log('[bootstrap] editorHtml set via setter: instanceId=' + instanceId + ' htmlLength=' + _html.length);
                         sindri.events.emit("__sindri.ui.editorHtml:" + instanceId, _html);
+                        _htmlEmitted = true;
                     },
                     postMessage: _emit,
                     onMessage(handler) {
@@ -448,12 +452,12 @@ globalThis.sindri = {
                 if (result && typeof result.then === 'function') {
                     await result;
                 }
-                // Emit html if it was set synchronously (setter fires immediately above, so
-                // this is a no-op for async providers; harmless duplicate for sync ones).
-                if (_html) {
-                    console.log('[bootstrap] emitting editorHtml: instanceId=' + instanceId + ' htmlLength=' + _html.length);
+                // Only emit if the setter didn't already fire (sync providers set html
+                // before any await, so the setter already emitted).
+                if (_html && !_htmlEmitted) {
+                    console.log('[bootstrap] emitting editorHtml (post-await): instanceId=' + instanceId + ' htmlLength=' + _html.length);
                     sindri.events.emit("__sindri.ui.editorHtml:" + instanceId, _html);
-                } else {
+                } else if (!_html) {
                     console.error('[bootstrap] resolveCustomEditor finished but webview.html was never set! instanceId=' + instanceId);
                 }
             });
