@@ -101,8 +101,10 @@ class TauriRegistryClient implements RegistryClient {
     // GitHub Release asset URLs always fail with CORS in Tauri WebView (redirect to
     // release-assets.githubusercontent.com is blocked). Use the committed raw artifact directly.
     const rawUrl = rawFileUrl(repoUrl, entry.folderPath, `dist/${assetName}`);
+    console.log(`[registry-client] downloadExtension: id=${id} version=${version} url=${rawUrl}`);
     if (rawUrl) {
       const bytes = await fetchBytes(rawUrl);
+      console.log(`[registry-client] fetchBytes: ${bytes ? bytes.length + " bytes" : "null (failed)"}`);
       if (bytes) return installSinxtBytes(id, version, bytes);
     }
 
