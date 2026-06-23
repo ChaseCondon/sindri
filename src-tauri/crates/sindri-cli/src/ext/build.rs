@@ -202,6 +202,12 @@ if (webviewCandidates.length > 0) {{
 ///
 /// Returns details about what was produced.
 pub(crate) fn build_extension(ext_dir: &Path, ide_root: &Path, bundle: bool, dev_sourcemaps: bool) -> Result<BuildExtResult> {
+    // Canonicalize to absolute path so the generated esbuild script can find
+    // extension source files when bun runs from a different CWD (sindri-ide/).
+    let ext_dir = ext_dir.canonicalize()
+        .with_context(|| format!("cannot resolve extension directory: {}", ext_dir.display()))?;
+    let ext_dir = ext_dir.as_path();
+
     // --- Validate manifest ---------------------------------------------------
     let manifest_path = ext_dir.join("manifest.json");
     let raw = std::fs::read_to_string(&manifest_path)
