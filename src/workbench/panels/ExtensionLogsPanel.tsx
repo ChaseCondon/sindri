@@ -323,6 +323,8 @@ export function ExtensionLogsPanel() {
             "font-family": "var(--font-mono, monospace)",
             "font-size": "12px",
             padding: "4px 0",
+            "user-select": "text",
+            "-webkit-user-select": "text",
           }}
         >
           <Show
