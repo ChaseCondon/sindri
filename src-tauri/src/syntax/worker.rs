@@ -10,7 +10,7 @@ use std::collections::HashMap;
 
 use streaming_iterator::StreamingIterator;
 use tokio::sync::{mpsc, oneshot};
-use tree_sitter::{InputEdit, Language, Parser, Point, Query, QueryCursor, Tree, WasmStore};
+use tree_sitter::{InputEdit, Parser, Point, Query, QueryCursor, Tree, WasmStore};
 
 use super::{Highlight, InputEditDelta};
 
@@ -103,6 +103,7 @@ fn run_worker(mut rx: mpsc::UnboundedReceiver<WorkerRequest>) {
 pub(super) struct GrammarDef {
     pub(super) wasm: Vec<u8>,
     pub(super) highlights_scm: String,
+    #[allow(dead_code)] // reserved for Phase 8 file→languageId mapping (ADR-0041 §5)
     pub(super) extensions: Vec<String>,
 }
 
