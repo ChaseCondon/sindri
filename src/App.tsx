@@ -170,6 +170,7 @@ export function App() {
     registerOpenFileHandler(async (path) => {
       try {
         const customEditor = matchDefaultCustomEditor(path);
+        console.log(`[sindri] open: path=${path} → customEditor=${customEditor?.viewType ?? "null (text)"}`);
         if (customEditor) {
           const name = path.split(/[/\\]/).pop() ?? path;
           openCustomEditorInActiveGroup(path, name, customEditor.viewType);

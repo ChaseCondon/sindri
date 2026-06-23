@@ -391,6 +391,7 @@ globalThis.sindri = {
         // provider sets webview.html and wires onMessage. The instance is identified
         // by an instanceId (occurrence key = groupId+\0+bufferId) supplied by the workbench.
         registerEditor(viewType, selector, provider, options) {
+            console.log('[bootstrap] registerEditor called: viewType=' + viewType);
             const priority = (options && options.priority) ? options.priority : 'default';
             // Announce registration so the workbench can update its selector registry.
             sindri.events.emit("__sindri.ui.editorRegistered", JSON.stringify({
@@ -402,6 +403,7 @@ globalThis.sindri = {
 
             // Listen for open-requests from the workbench ("please resolve this instance").
             sindri.events.on("__sindri.ui.editorOpenRequest:" + viewType, async function(rawPayload) {
+                console.log('[bootstrap] editorOpenRequest received: viewType=' + viewType + ' payload=' + rawPayload);
                 let req;
                 try { req = JSON.parse(rawPayload); } catch { return; }
                 const { uri, instanceId } = req;
@@ -449,7 +451,10 @@ globalThis.sindri = {
                 // Emit html if it was set synchronously (setter fires immediately above, so
                 // this is a no-op for async providers; harmless duplicate for sync ones).
                 if (_html) {
+                    console.log('[bootstrap] emitting editorHtml: instanceId=' + instanceId + ' htmlLength=' + _html.length);
                     sindri.events.emit("__sindri.ui.editorHtml:" + instanceId, _html);
+                } else {
+                    console.error('[bootstrap] resolveCustomEditor finished but webview.html was never set! instanceId=' + instanceId);
                 }
             });
 

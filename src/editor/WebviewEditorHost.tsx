@@ -66,19 +66,25 @@ export function WebviewEditorHost(props: Props) {
   };
 
   onMount(() => {
+    console.log(`[WebviewEditorHost] mount instanceId=${props.instanceId} viewType=${props.viewType}`);
+
     // Listen for HTML from the extension (resolveCustomEditor result).
     let unlistenHtml: (() => void) | undefined;
     listenExtEvent(`__sindri.ui.editorHtml:${props.instanceId}`, (html) => {
+      console.log(`[WebviewEditorHost] received editorHtml instanceId=${props.instanceId} length=${html.length}`);
       registerCustomEditorHtml(props.instanceId, html);
     }).then((fn) => { unlistenHtml = fn; });
 
     // Trigger resolveCustomEditor if HTML not yet ready.
     if (!getCustomEditorHtml(props.instanceId)) {
       const uri = registry.buffers[props.bufferId]?.path ?? "";
+      console.log(`[WebviewEditorHost] dispatching editorOpenRequest viewType=${props.viewType} uri=${uri}`);
       dispatch(
         `__sindri.ui.editorOpenRequest:${props.viewType}`,
         JSON.stringify({ uri, instanceId: props.instanceId }),
       ).catch(console.error);
+    } else {
+      console.log(`[WebviewEditorHost] HTML already cached for instanceId=${props.instanceId}`);
     }
 
     // Ext → webview: route outbound messages into the iframe.
@@ -122,9 +128,10 @@ export function WebviewEditorHost(props: Props) {
             padding: "16px",
             color: "var(--text-dim)",
             "font-size": "13px",
+            "font-family": "var(--font-mono, monospace)",
           }}
         >
-          Loading editor…
+          Loading editor… (waiting for {props.viewType} · check F12 console)
         </div>
       }
     >
