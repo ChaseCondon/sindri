@@ -166,10 +166,18 @@ pub async fn ext_activate(
     ext_id: Option<String>,
 ) -> Result<(), String> {
     if let (Some(id), Some(dir)) = (&ext_id, &bundle_dir) {
+        // bundleDir is the parent of extension.js (typically dist/).
+        // sindri-resource:// paths are relative to the extension ROOT (parent of dist/),
+        // matching sinxt archive layout where dist/webview.js is the entry path.
+        let bundle_path_obj = PathBuf::from(dir);
+        let resource_root = bundle_path_obj
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or(bundle_path_obj);
         ext_bundle_sources
             .lock()
             .unwrap()
-            .insert(id.clone(), ExtBundleSource::Dir(PathBuf::from(dir)));
+            .insert(id.clone(), ExtBundleSource::Dir(resource_root));
     }
     let bin_paths = resolve_dev_bin_paths(bundle_dir.as_deref());
     let l10n_bundle = resolve_dev_l10n_bundle(bundle_dir.as_deref());
