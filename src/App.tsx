@@ -8,7 +8,8 @@ import {
   openCustomEditorInActiveGroup,
 } from "./editor/groups";
 import { matchDefaultCustomEditor } from "./editor/custom-editor-registry";
-import { registry, markSaved, registerSaveHandler } from "./editor/buffers";
+import { registry, markSaved, registerSaveHandler, registerEditorUpdateListener } from "./editor/buffers";
+import { get as getConfig } from "./workbench/settings/configStore";
 import { openFile, openFolder, openFilePath, saveFile, isFsaActive, isTauri } from "./lib/tauri";
 import { invoke } from "@tauri-apps/api/core";
 import { Workbench } from "./workbench/Workbench";
@@ -171,6 +172,19 @@ export function App() {
     document.addEventListener("keydown", onKeyDown);
 
     registerSaveHandler(handleSave);
+
+    // Auto-save: debounced save triggered on every document change when enabled.
+    let _autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+    registerEditorUpdateListener((update) => {
+      if (!update.docChanged || update.transactions.length === 0) return;
+      if (!getConfig("editor.autoSave")) return;
+      if (_autosaveTimer) clearTimeout(_autosaveTimer);
+      const delay = (getConfig("editor.autoSaveDelay") as number | undefined) ?? 1500;
+      _autosaveTimer = setTimeout(() => {
+        _autosaveTimer = null;
+        void handleSave();
+      }, delay);
+    });
 
     registerOpenFileHandler(async (path) => {
       try {

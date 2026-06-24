@@ -92,6 +92,36 @@ export const EDITOR_DECORATIONS_SCHEMA: ConfigurationSchema = {
   },
 };
 
+// ── Built-in schema: sindri.general ─────────────────────────────────────────
+
+export const GENERAL_SCHEMA: ConfigurationSchema = {
+  "editor.autoSave": {
+    type: "boolean",
+    default: false,
+    groupTitle: "Saving",
+    title: "Auto save",
+    description: "Automatically save files after a short delay when edited. When disabled, save manually with ⌘S / Ctrl+S.",
+    order: 1,
+  },
+  "editor.autoSaveDelay": {
+    type: "number",
+    default: 1500,
+    title: "Auto save delay (ms)",
+    description: "Milliseconds to wait after the last keystroke before auto-saving.",
+    minimum: 200,
+    maximum: 10000,
+    step: 100,
+    presentation: "range",
+    when: "editor.autoSave",
+    order: 2,
+  },
+};
+
+registerSchemas("sindri.general", {
+  navSection: { group: "General", label: "Editor", order: 1 },
+  schema: GENERAL_SCHEMA,
+});
+
 // Register at module init so get() works before App mounts.
 registerSchemas("sindri.editor-decorations", {
   navSection: { group: "Appearance", label: "Editor", order: 1 },
