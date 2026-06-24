@@ -778,21 +778,26 @@
 
 /* Version dropdown in detail pane */
 .mkt-version-select {
+  /* Remove native chrome so we control sizing exactly like .settings-btn-secondary */
+  appearance: none;
+  -webkit-appearance: none;
   font-size: 12px;
   font-family: inherit;
-  background: transparent;
+  background: transparent
+    url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    no-repeat right 10px center;
+  background-size: 10px 6px;
   border: 1px solid var(--border);
   border-radius: 5px;
   color: var(--text-dim);
-  padding: 5px 10px 5px 14px;
+  padding: 5px 28px 5px 14px; /* right side leaves room for the chevron */
   cursor: pointer;
   outline: none;
-  appearance: auto;
   height: auto;
-  transition: background 0.1s, color 0.1s;
+  transition: background-color 0.1s, color 0.1s;
 }
 .mkt-version-select:hover {
-  background: var(--bg-hover);
+  background-color: var(--bg-hover);
   color: var(--text);
 }
 .mkt-version-select:focus { border-color: var(--accent); }

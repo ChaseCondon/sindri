@@ -277,23 +277,33 @@ export async function doInstall(entry: MarketplaceEntry, versionOverride?: strin
       }
     }
     const client = getRegistryClient();
+    // Strip "v" prefix for comparison and filename construction.
+    const stripV = (v: string) => v.startsWith("v") ? v.slice(1) : v;
     const targetVersion = versionOverride ?? item.manifest.version;
-    const isSpecificVersion = !!versionOverride && versionOverride !== item.manifest.version;
+    const targetVersionBare = stripV(targetVersion);
+    const isSpecificVersion = !!versionOverride && targetVersionBare !== item.manifest.version;
     const sinxtPath = await client.downloadExtension(
       item, targetVersion, repoUrl,
       isSpecificVersion ? targetVersion : undefined,
     );
     if (sinxtPath) {
+      // When installing a specific older/newer version, patch the manifest version
+      // so the installed record reflects what's actually on disk — otherwise
+      // selectedVersionIsInstalled() stays false and the Switch button persists.
+      const effectiveManifest = isSpecificVersion
+        ? { ...item.manifest, version: targetVersionBare }
+        : item.manifest;
+
       const isUpdate = installedExtensions().some((r) => r.id === id);
       if (isUpdate) {
         // Deactivate the old isolate before activating the new sinxt so there
         // are no duplicate editorOpenRequest listeners from the old version.
         if (isTauri()) await invoke("ext_deactivate", { extId: id }).catch(() => {});
-        updateInstalledExtension(id, item.manifest, sinxtPath);
+        updateInstalledExtension(id, effectiveManifest, sinxtPath);
       } else {
-        installExtension(id, repoUrl, item.folderPath, item.manifest, sinxtPath);
+        installExtension(id, repoUrl, item.folderPath, effectiveManifest, sinxtPath);
       }
-      await activateExtensionFromSinxt(sinxtPath, item.manifest);
+      await activateExtensionFromSinxt(sinxtPath, effectiveManifest);
       return true;
     }
     console.error(`[Marketplace] failed to download .sinxt for ${id}`);
