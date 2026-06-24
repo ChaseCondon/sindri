@@ -80,6 +80,7 @@ pub(crate) async fn do_load_and_activate(
     workspace_root: Option<&str>,
     bin_paths: &HashMap<String, String>,
     l10n_bundle: Option<&str>,
+    config_snapshot: Option<&str>,
     source_maps: &mut SourceMaps,
 ) -> Result<(), ExthostError> {
     let mut source = tokio::fs::read_to_string(bundle_path)
@@ -134,12 +135,18 @@ pub(crate) async fn do_load_and_activate(
             .filter(|v| v.is_object())
             .and_then(|v| serde_json::to_string(&v).ok())
             .unwrap_or_else(|| "{}".to_owned());
+        let config_snapshot_js = config_snapshot
+            .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok())
+            .filter(|v| v.is_object())
+            .and_then(|v| serde_json::to_string(&v).ok())
+            .unwrap_or_else(|| "{}".to_owned());
         let inject = format!(
             "globalThis.__sindri_ext_id = {ext_id_js}; \
              globalThis.__sindri_workspace_root = {workspace_root_js}; \
              globalThis.__sindri_bundle_dir = {bundle_dir_js}; \
              globalThis.__sindri_bin_paths = {bin_paths_js}; \
-             globalThis.__sindri_l10n_bundle = {l10n_bundle_js};"
+             globalThis.__sindri_l10n_bundle = {l10n_bundle_js}; \
+             globalThis.__sindri_config_snapshot = {config_snapshot_js};"
         );
         rt.execute_script("<sindri-globals>", inject)
             .map_err(|e| ExthostError::Js(e.to_string()))?;

@@ -308,6 +308,8 @@ export function set(key: string, value: unknown): void {
   }
   persist();
   emit([key]);
+  const resolved = get(key);
+  for (const fn of _extConfigBroadcasters) fn(key, resolved);
 }
 
 export function schemaFor(key: string): ConfigurationField | undefined {
@@ -317,6 +319,28 @@ export function schemaFor(key: string): ConfigurationField | undefined {
 /** Returns all registered configuration contributions (extensionId → contribution). */
 export function allContributions(): ReadonlyMap<string, ConfigurationContribution> {
   return _contributions;
+}
+
+/** Returns a snapshot of all current config values keyed by setting key. */
+export function getAllValues(): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const key of _schema.keys()) {
+    try { result[key] = get(key); } catch { /* skip unknown */ }
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Config change broadcast to extension runtimes
+// ---------------------------------------------------------------------------
+
+const _extConfigBroadcasters = new Set<(key: string, value: unknown) => void>();
+
+/** Register a broadcaster that will be called on every config change.
+ *  Used by the extension host bridge to push updates to active V8 isolates. */
+export function registerExtConfigBroadcaster(fn: (key: string, value: unknown) => void): () => void {
+  _extConfigBroadcasters.add(fn);
+  return () => _extConfigBroadcasters.delete(fn);
 }
 
 /** Register an imperative change handler (for non-Solid consumers like decoration-registry). */

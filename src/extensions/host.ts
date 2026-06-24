@@ -16,10 +16,10 @@ export interface ExtHostClient {
   dispatch(id: string, payload: string): Promise<void>;
   /** Subscribe to events emitted by extensions via sindri.events.emit(id, payload). */
   listen(id: string, handler: (payload: string) => void): Promise<UnlistenFn>;
-  /** Activate an extension bundle at the given absolute path. extId is the manifest id for log attribution (ADR-0030); bundleDir is its parent directory for sindri-resource:// serving (ADR-0031). */
-  activate(bundlePath: string, extId?: string, bundleDir?: string): Promise<void>;
-  /** Activate an extension from an installed .sinxt archive. Rust reads bundle.js from the zip; sindri-resource:// is served from zip entries on demand. */
-  activateSinxt(sinxtPath: string, extId: string): Promise<void>;
+  /** Activate an extension bundle. configSnapshot is a JSON object of all current settings injected as globalThis.__sindri_config_snapshot. */
+  activate(bundlePath: string, extId?: string, bundleDir?: string, configSnapshot?: string): Promise<void>;
+  /** Activate an extension from an installed .sinxt archive. configSnapshot injected the same way. */
+  activateSinxt(sinxtPath: string, extId: string, configSnapshot?: string): Promise<void>;
   /** Execute a command registered by the active extension. */
   executeCommand(commandId: string): Promise<string>;
   /** Call getChildren on a registered tree-view provider; returns JSON-encoded TreeItem[]. */
@@ -48,12 +48,12 @@ class TauriExtHostClient implements ExtHostClient {
     });
   }
 
-  async activate(bundlePath: string, extId?: string, bundleDir?: string): Promise<void> {
-    await invoke("ext_activate", { bundlePath, extId: extId ?? null, bundleDir: bundleDir ?? null });
+  async activate(bundlePath: string, extId?: string, bundleDir?: string, configSnapshot?: string): Promise<void> {
+    await invoke("ext_activate", { bundlePath, extId: extId ?? null, bundleDir: bundleDir ?? null, configSnapshot: configSnapshot ?? null });
   }
 
-  async activateSinxt(sinxtPath: string, extId: string): Promise<void> {
-    await invoke("ext_activate_sinxt", { sinxtPath, extId });
+  async activateSinxt(sinxtPath: string, extId: string, configSnapshot?: string): Promise<void> {
+    await invoke("ext_activate_sinxt", { sinxtPath, extId, configSnapshot: configSnapshot ?? null });
   }
 
   async executeCommand(commandId: string): Promise<string> {
@@ -91,8 +91,8 @@ class BrowserExtHostClient implements ExtHostClient {
   async listen(_id: string, _handler: (payload: string) => void): Promise<UnlistenFn> {
     return () => {};
   }
-  async activate(_bundlePath: string, _extId?: string, _bundleDir?: string): Promise<void> {}
-  async activateSinxt(_sinxtPath: string, _extId: string): Promise<void> {}
+  async activate(_bundlePath: string, _extId?: string, _bundleDir?: string, _configSnapshot?: string): Promise<void> {}
+  async activateSinxt(_sinxtPath: string, _extId: string, _configSnapshot?: string): Promise<void> {}
   async executeCommand(_commandId: string): Promise<string> { return ""; }
   async treeViewGetChildren(_treeId: string, _elementId?: string): Promise<string> { return "[]"; }
   async quickPickResult(_requestId: string, _item: string | null): Promise<void> {}
@@ -117,12 +117,12 @@ export function listenExtEvent(id: string, handler: (payload: string) => void): 
   return _extHostClient.listen(id, handler);
 }
 
-export function activateExtension(bundlePath: string, extId?: string, bundleDir?: string): Promise<void> {
-  return _extHostClient.activate(bundlePath, extId, bundleDir);
+export function activateExtension(bundlePath: string, extId?: string, bundleDir?: string, configSnapshot?: string): Promise<void> {
+  return _extHostClient.activate(bundlePath, extId, bundleDir, configSnapshot);
 }
 
-export function activateSinxtExtension(sinxtPath: string, extId: string): Promise<void> {
-  return _extHostClient.activateSinxt(sinxtPath, extId);
+export function activateSinxtExtension(sinxtPath: string, extId: string, configSnapshot?: string): Promise<void> {
+  return _extHostClient.activateSinxt(sinxtPath, extId, configSnapshot);
 }
 
 export function executeExtCommand(commandId: string): Promise<string> {

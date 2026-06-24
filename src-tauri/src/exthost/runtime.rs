@@ -49,7 +49,7 @@ type Reply<T> = oneshot::Sender<Result<T, ExthostError>>;
 
 enum Msg {
     EvalTest(Reply<Vec<String>>),
-    LoadAndActivate { path: String, ext_id: Option<String>, workspace_root: Option<String>, bin_paths: HashMap<String, String>, l10n_bundle: Option<String>, reply: Reply<()> },
+    LoadAndActivate { path: String, ext_id: Option<String>, workspace_root: Option<String>, bin_paths: HashMap<String, String>, l10n_bundle: Option<String>, config_snapshot: Option<String>, reply: Reply<()> },
     DispatchCommand { id: String, reply: Reply<String> },
     DispatchEvent { id: String, payload: String, reply: Reply<()> },
     TreeViewGetChildren { tree_id: String, element_id: Option<String>, reply: Reply<String> },
@@ -142,6 +142,7 @@ impl ExtensionRuntime {
     /// so console output and `sindri.output` channels are attributed correctly (ADR-0030).
     /// `bin_paths` is injected as `globalThis.__sindri_bin_paths` for bundled binary resolution (ADR-0036).
     /// `l10n_bundle` is a JSON string (flat key→translation map) injected as `globalThis.__sindri_l10n_bundle`.
+    /// `config_snapshot` is a JSON object of all current Sindri settings injected as `globalThis.__sindri_config_snapshot`.
     pub async fn load_and_activate(
         &self,
         bundle_path: &str,
@@ -149,6 +150,7 @@ impl ExtensionRuntime {
         workspace_root: Option<&str>,
         bin_paths: HashMap<String, String>,
         l10n_bundle: Option<String>,
+        config_snapshot: Option<String>,
     ) -> Result<(), ExthostError> {
         let (tx, rx) = oneshot::channel();
         self.tx
@@ -158,6 +160,7 @@ impl ExtensionRuntime {
                 workspace_root: workspace_root.map(|s| s.to_owned()),
                 bin_paths,
                 l10n_bundle,
+                config_snapshot,
                 reply: tx,
             })
             .map_err(|_| ExthostError::RuntimeGone)?;
@@ -320,9 +323,9 @@ async fn dispatch_msg(rt: &mut JsRuntime, msg: Msg, source_maps: &mut SourceMaps
         Msg::EvalTest(reply) => {
             let _ = reply.send(do_eval_test(rt).await);
         }
-        Msg::LoadAndActivate { path, ext_id, workspace_root, bin_paths, l10n_bundle, reply } => {
+        Msg::LoadAndActivate { path, ext_id, workspace_root, bin_paths, l10n_bundle, config_snapshot, reply } => {
             let _ = reply.send(
-                do_load_and_activate(rt, &path, ext_id.as_deref(), workspace_root.as_deref(), &bin_paths, l10n_bundle.as_deref(), source_maps).await
+                do_load_and_activate(rt, &path, ext_id.as_deref(), workspace_root.as_deref(), &bin_paths, l10n_bundle.as_deref(), config_snapshot.as_deref(), source_maps).await
             );
         }
         Msg::DispatchCommand { id, reply } => {

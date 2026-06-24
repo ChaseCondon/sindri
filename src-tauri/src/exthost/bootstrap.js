@@ -17,6 +17,9 @@ globalThis.__sindri_bin_paths = {};
 // Falls back to an empty object; sindri.l10n.t() returns the key itself when no translation found.
 globalThis.__sindri_l10n_bundle = {};
 globalThis.__sindri_locale = "en-US";
+// Injected at activation: snapshot of all Sindri settings at activate() time.
+// Updated live via __sindri.config.changed events pushed by the frontend on set().
+globalThis.__sindri_config_snapshot = {};
 // ADR-0030: console lines are routed to the Extension Logs panel via __sindri.output.line.
 // __sindri_ext_id is injected just before the bundle runs (do_load_and_activate) so all
 // console calls during activate() carry the correct extension id.
@@ -573,5 +576,41 @@ globalThis.sindri = {
         },
         get bundle() { return Object.assign({}, globalThis.__sindri_l10n_bundle ?? {}); },
         get locale() { return globalThis.__sindri_locale ?? "en-US"; },
-    }
+    },
+
+    // ADR-0023 §config — read Sindri settings from within an extension.
+    // Snapshot is injected at activate() time; live updates arrive via __sindri.config.changed.
+    config: (function() {
+        const _listeners = {};
+
+        // Handle live updates from the frontend (fired whenever configStore.set() is called).
+        sindri.events.on("__sindri.config.changed", function(payload) {
+            try {
+                const { key, value } = JSON.parse(payload);
+                (globalThis.__sindri_config_snapshot = globalThis.__sindri_config_snapshot || {})[key] = value;
+                const fns = _listeners[key];
+                if (fns) fns.forEach(function(fn) { try { fn(value); } catch {} });
+            } catch {}
+        });
+
+        return {
+            /** Read the current value of a setting. Returns undefined if not registered. */
+            get(key) {
+                return (globalThis.__sindri_config_snapshot || {})[key];
+            },
+            /** Subscribe to changes for a specific key. Returns a Disposable. */
+            onChange(key, handler) {
+                if (!_listeners[key]) _listeners[key] = [];
+                _listeners[key].push(handler);
+                return {
+                    dispose() {
+                        const arr = _listeners[key];
+                        if (!arr) return;
+                        const i = arr.indexOf(handler);
+                        if (i >= 0) arr.splice(i, 1);
+                    }
+                };
+            }
+        };
+    })()
 };

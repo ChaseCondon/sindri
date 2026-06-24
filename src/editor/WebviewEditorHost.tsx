@@ -76,16 +76,30 @@ export function WebviewEditorHost(props: Props) {
   onMount(() => {
     console.log(`[WebviewEditorHost] mount instanceId=${props.instanceId} viewType=${props.viewType}`);
 
-    // Listen for HTML from the extension (resolveCustomEditor result).
+    // Register ALL listeners before dispatching the request.
+    // The editorHtml event can fire very quickly (extension has no async work before
+    // setting webview.html), so we must be subscribed before we send the request —
+    // especially on reopen where the extension is already warm and responds faster.
+
     let unlistenHtml: (() => void) | undefined;
+    let unlistenRegistered: (() => void) | undefined;
+
+    // Dispatch only after editorHtml listener is confirmed subscribed.
     listenExtEvent(`__sindri.ui.editorHtml:${props.instanceId}`, (html) => {
       console.log(`[WebviewEditorHost] received editorHtml instanceId=${props.instanceId} length=${html.length}`);
       registerCustomEditorHtml(props.instanceId, html);
-    }).then((fn) => { unlistenHtml = fn; });
+    }).then((fn) => {
+      unlistenHtml = fn;
+      // NOW it is safe to request — we will not miss the response.
+      if (!getCustomEditorHtml(props.instanceId)) {
+        console.log(`[WebviewEditorHost] dispatching editorOpenRequest viewType=${props.viewType}`);
+        requestHtml();
+      } else {
+        console.log(`[WebviewEditorHost] HTML already cached for instanceId=${props.instanceId}`);
+      }
+    });
 
-    // Startup race: if the extension registers AFTER we mount (e.g. slow activation
-    // on startup session-restore), re-request HTML when it does.
-    let unlistenRegistered: (() => void) | undefined;
+    // Startup race: extension registers AFTER we mount — re-request if still no HTML.
     listenExtEvent("__sindri.ui.editorRegistered", (payload) => {
       try {
         const data = JSON.parse(payload) as { viewType: string };
@@ -96,21 +110,12 @@ export function WebviewEditorHost(props: Props) {
       } catch { /* ignore malformed payload */ }
     }).then((fn) => { unlistenRegistered = fn; });
 
-    // Version-switch refresh: called by refreshCustomEditorsByViewType after upgrade/downgrade.
+    // Version-switch refresh: re-request after upgrade/downgrade.
     const unsubRefresh = onCustomEditorRefresh(props.viewType, () => {
       console.log(`[WebviewEditorHost] version-switch refresh for instanceId=${props.instanceId}`);
       removeCustomEditorHtml(props.instanceId);
       requestHtml();
     });
-
-    // Trigger resolveCustomEditor if HTML not yet ready.
-    if (!getCustomEditorHtml(props.instanceId)) {
-      const uri = registry.buffers[props.bufferId]?.path ?? "";
-      console.log(`[WebviewEditorHost] dispatching editorOpenRequest viewType=${props.viewType} uri=${uri}`);
-      requestHtml();
-    } else {
-      console.log(`[WebviewEditorHost] HTML already cached for instanceId=${props.instanceId}`);
-    }
 
     // Ext → webview: route outbound messages into the iframe.
     let unlisten: (() => void) | undefined;

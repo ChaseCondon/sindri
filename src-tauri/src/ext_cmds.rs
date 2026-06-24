@@ -164,6 +164,7 @@ pub async fn ext_activate(
     bundle_path: String,
     bundle_dir: Option<String>,
     ext_id: Option<String>,
+    config_snapshot: Option<String>,
 ) -> Result<(), String> {
     if let (Some(id), Some(dir)) = (&ext_id, &bundle_dir) {
         // bundleDir is the parent of extension.js (typically dist/).
@@ -184,7 +185,7 @@ pub async fn ext_activate(
     let engines = resolve_dev_engines(bundle_dir.as_deref());
     let grammars = resolve_dev_grammars(bundle_dir.as_deref());
     let wr = workspace_root.lock().unwrap().clone();
-    host.activate(&bundle_path, ext_id.as_deref(), wr.as_deref(), (*env).clone(), bin_paths, l10n_bundle, engines.as_deref())
+    host.activate(&bundle_path, ext_id.as_deref(), wr.as_deref(), (*env).clone(), bin_paths, l10n_bundle, config_snapshot, engines.as_deref())
         .await
         .map_err(|e| e.to_string())?;
     for (language_id, wasm, highlights_scm, extensions) in grammars {
@@ -203,6 +204,7 @@ pub async fn ext_activate_sinxt(
     ext_bundle_sources: State<'_, ExtBundleSources>,
     sinxt_path: String,
     ext_id: String,
+    config_snapshot: Option<String>,
 ) -> Result<(), String> {
     let sinxt = PathBuf::from(&sinxt_path);
 
@@ -301,6 +303,7 @@ pub async fn ext_activate_sinxt(
         (*env).clone(),
         bin_paths,
         l10n_bundle,
+        config_snapshot,
         manifest.engines.as_ref().and_then(|e| e.sindri.as_deref()),
     )
     .await

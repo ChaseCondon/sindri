@@ -7,6 +7,7 @@
 // (title, icon, defaultDock). handleTreeViewRegistered is then a no-op for those IDs.
 import { invoke } from "@tauri-apps/api/core";
 import { listenExtEvent, activateExtension, activateSinxtExtension } from "./host";
+import { getAllValues } from "../workbench/settings/configStore";
 import { registerToolWindow } from "../workbench/layout";
 import { TreeViewHost } from "../workbench/panels/TreeViewHost";
 import { WebviewPanelHost } from "../workbench/panels/WebviewPanelHost";
@@ -202,7 +203,7 @@ export async function activateExtensionWithManifest(bundlePath: string): Promise
     });
   }
 
-  await activateExtension(bundlePath, extId, bundleDir);
+  await activateExtension(bundlePath, extId, bundleDir, JSON.stringify(getAllValues()));
 }
 
 /**
@@ -252,7 +253,7 @@ export async function activateExtensionFromSinxt(
     });
   }
 
-  await activateSinxtExtension(sinxtPath, extId);
+  await activateSinxtExtension(sinxtPath, extId, JSON.stringify(getAllValues()));
 }
 
 /**

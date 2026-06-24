@@ -307,6 +307,37 @@ declare interface SindriL10n {
   readonly locale: string;
 }
 
+// ─── sindri.config (ADR-0023) ────────────────────────────────────────────────
+
+declare interface SindriConfig {
+  /**
+   * Read the current value of a Sindri setting.
+   *
+   * The snapshot is populated from all registered settings at extension activation
+   * time, and kept live via reactive updates whenever the user changes a setting.
+   *
+   * @returns The setting's current value, or `undefined` if the key is not registered.
+   *
+   * @example
+   *   const autoSave = sindri.config.get<boolean>("editor.autoSave") ?? false;
+   */
+  get<T = unknown>(key: string): T | undefined;
+
+  /**
+   * Subscribe to changes for a specific setting key.
+   *
+   * The handler fires whenever the user saves a new value for `key` in the
+   * Sindri settings UI. The Disposable returned by this call removes the handler.
+   *
+   * @example
+   *   sindri.config.onChange("editor.autoSave", (enabled) => {
+   *     if (enabled) startAutosaveTimer();
+   *     else clearAutosaveTimer();
+   *   });
+   */
+  onChange<T = unknown>(key: string, handler: (value: T) => void): Disposable;
+}
+
 // ─── sindri.wasm (ADR-0035) ───────────────────────────────────────────────────
 
 declare interface SindriWasm {
@@ -344,4 +375,6 @@ declare const sindri: {
   wasm: SindriWasm;
   /** Localisation API — translate extension strings via locale bundles (1.5j). */
   l10n: SindriL10n;
+  /** Settings API — read and react to Sindri configuration values (ADR-0023). */
+  config: SindriConfig;
 };

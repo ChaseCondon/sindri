@@ -75,6 +75,7 @@ impl ExtHost {
         env: Arc<dyn crate::env::Environment>,
         bin_paths: HashMap<String, String>,
         l10n_bundle: Option<String>,
+        config_snapshot: Option<String>,
         engines: Option<&str>,
     ) -> Result<(), ExthostError> {
         // ADR-0040: engine compat gate — checked before allocating a V8 isolate.
@@ -97,7 +98,7 @@ impl ExtHost {
             }
         }
         let rt = ExtensionRuntime::new(env, Some(self.event_tx.clone())).await?;
-        rt.load_and_activate(bundle_path, ext_id, workspace_root, bin_paths, l10n_bundle).await?;
+        rt.load_and_activate(bundle_path, ext_id, workspace_root, bin_paths, l10n_bundle, config_snapshot).await?;
         let key = ext_id.unwrap_or(bundle_path).to_owned();
         let rt = Arc::new(rt);
 

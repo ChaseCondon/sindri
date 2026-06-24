@@ -9,7 +9,8 @@ import {
 } from "./editor/groups";
 import { matchDefaultCustomEditor } from "./editor/custom-editor-registry";
 import { registry, markSaved, registerSaveHandler, registerEditorUpdateListener } from "./editor/buffers";
-import { get as getConfig } from "./workbench/settings/configStore";
+import { get as getConfig, registerExtConfigBroadcaster } from "./workbench/settings/configStore";
+import { dispatch } from "./extensions/host";
 import { openFile, openFolder, openFilePath, saveFile, isFsaActive, isTauri } from "./lib/tauri";
 import { invoke } from "@tauri-apps/api/core";
 import { Workbench } from "./workbench/Workbench";
@@ -37,6 +38,11 @@ registerBuiltinThemes();
 registerBuiltinIconThemes();
 registerBuiltinUiPack();
 applyTheme();
+
+// Broadcast config changes to all active extension runtimes so sindri.config.onChange fires.
+registerExtConfigBroadcaster((key, value) => {
+  dispatch("__sindri.config.changed", JSON.stringify({ key, value })).catch(() => {});
+});
 
 // Pre-populate marketplace cache so the tab is instant on first open.
 // The MarketplaceSection will still re-fetch when mounted (fresh data), but
