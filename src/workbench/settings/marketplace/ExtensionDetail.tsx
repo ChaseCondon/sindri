@@ -37,17 +37,30 @@ export function ExtensionDetail(props: {
   // The install button should appear when nothing is installed OR a different version is selected.
   const showInstallBtn = () => !isBundled && !needsHost && !isPack && !selectedVersionIsInstalled();
 
-  // README: fetch on demand; undefined = loading, null = not found, string = content
+  // README + CHANGELOG: fetch on demand; undefined = loading, null = not found, string = content
   const [readmeContent, setReadmeContent] = createSignal<string | null | undefined>(undefined);
+  const [changelogContent, setChangelogContent] = createSignal<string | null | undefined>(undefined);
+  const [detailTab, setDetailTab] = createSignal<"overview" | "changelog">("overview");
+
   createEffect(() => {
     const { repoUrl } = props.entry;
-    if (!repoUrl) { setReadmeContent(null); return; }
-    const url = rawFileUrl(repoUrl, props.entry.item.folderPath, "README.md");
-    if (!url) { setReadmeContent(null); return; }
-    fetch(url, { cache: "no-cache" })
-      .then(res => res.ok ? res.text() : null)
-      .then(text => setReadmeContent(text))
-      .catch(() => setReadmeContent(null));
+    if (!repoUrl) { setReadmeContent(null); setChangelogContent(null); return; }
+
+    const readmeUrl = rawFileUrl(repoUrl, props.entry.item.folderPath, "README.md");
+    if (readmeUrl) {
+      fetch(readmeUrl, { cache: "no-cache" })
+        .then(res => res.ok ? res.text() : null)
+        .then(text => setReadmeContent(text))
+        .catch(() => setReadmeContent(null));
+    } else { setReadmeContent(null); }
+
+    const changelogUrl = rawFileUrl(repoUrl, props.entry.item.folderPath, "CHANGELOG.md");
+    if (changelogUrl) {
+      fetch(changelogUrl, { cache: "no-cache" })
+        .then(res => res.ok ? res.text() : null)
+        .then(text => setChangelogContent(text))
+        .catch(() => setChangelogContent(null));
+    } else { setChangelogContent(null); }
   });
 
   // Available version tags — fetched from GitHub Releases on mount.
@@ -200,8 +213,8 @@ export function ExtensionDetail(props: {
         </Show>
         <Show when={!isBundled && !needsHost && !isPack}>
           <div class="mkt-installed-row">
-            {/* Version selector — inline with the action buttons for code extensions */}
-            <Show when={manifest.main && (availableTags().length > 1 || tagsLoading())}>
+            {/* Version selector — always shown for code extensions */}
+            <Show when={!!manifest.main}>
               <select
                 class="mkt-version-select"
                 value={selectedVersion()}
@@ -285,14 +298,36 @@ export function ExtensionDetail(props: {
       <IconThemePreview entry={props.entry} />
       </div>{/* /mkt-detail-fixed-top */}
 
-      <Show when={readmeContent() === undefined}>
-        <div class="mkt-detail-readme mkt-detail-readme-empty" style={{ opacity: "0.45" }}>Loading…</div>
+      {/* Tab bar — only shown when changelog is available */}
+      <Show when={!!changelogContent()}>
+        <div class="mkt-detail-tab-bar">
+          <button
+            class={`mkt-detail-tab${detailTab() === "overview" ? " active" : ""}`}
+            onClick={() => setDetailTab("overview")}
+          >Overview</button>
+          <button
+            class={`mkt-detail-tab${detailTab() === "changelog" ? " active" : ""}`}
+            onClick={() => setDetailTab("changelog")}
+          >Changelog</button>
+        </div>
       </Show>
-      <Show when={readmeContent() !== undefined && !!readmeContent()}>
-        <div class="mkt-detail-readme" innerHTML={safeRenderMarkdown(readmeContent() as string)} />
+
+      {/* Overview tab (README) */}
+      <Show when={detailTab() === "overview"}>
+        <Show when={readmeContent() === undefined}>
+          <div class="mkt-detail-readme mkt-detail-readme-empty" style={{ opacity: "0.45" }}>Loading…</div>
+        </Show>
+        <Show when={readmeContent() !== undefined && !!readmeContent()}>
+          <div class="mkt-detail-readme" innerHTML={safeRenderMarkdown(readmeContent() as string)} />
+        </Show>
+        <Show when={readmeContent() !== undefined && !readmeContent()}>
+          <div class="mkt-detail-readme mkt-detail-readme-empty">No description provided.</div>
+        </Show>
       </Show>
-      <Show when={readmeContent() !== undefined && !readmeContent()}>
-        <div class="mkt-detail-readme mkt-detail-readme-empty">No description provided.</div>
+
+      {/* Changelog tab */}
+      <Show when={detailTab() === "changelog" && !!changelogContent()}>
+        <div class="mkt-detail-readme" innerHTML={safeRenderMarkdown(changelogContent() as string)} />
       </Show>
 
       <div class="mkt-detail-meta">

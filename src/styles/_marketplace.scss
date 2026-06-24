@@ -969,6 +969,32 @@
 }
 .mkt-bugs-link:hover { opacity: 1; color: var(--text); }
 
+/* Overview / Changelog tab bar */
+.mkt-detail-tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 0 14px;
+}
+.mkt-detail-tab {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-family: inherit;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  margin-bottom: -1px;
+  transition: color 0.1s;
+  &:hover { color: var(--text); }
+  &.active {
+    color: var(--text);
+    border-bottom-color: var(--accent);
+    font-weight: 500;
+  }
+}
+
 /* Rendered markdown README */
 .mkt-detail-readme {
   font-size: 12px;
