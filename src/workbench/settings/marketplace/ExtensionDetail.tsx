@@ -3,9 +3,9 @@ import { createSignal, createEffect, createMemo, For, Show, onCleanup, onMount }
 import { rawFileUrl, fetchAvailableVersions } from "../../../extensions/registry-client";
 import { getThemeDef, setUiTheme, setIconTheme, setUiPack } from "../../../theme/registry";
 import type { ThemeDef } from "../../../theme/tokens";
-import { registryRepos, installedIds, liveThemePreview, setPreviewThemeDef } from "../store";
+import { registryRepos, installedIds, installedExtensions, liveThemePreview, setPreviewThemeDef } from "../store";
 import {
-  allEntries, hasUpdate, isPrerelease, isExtensionPack, CATEGORY_ICONS,
+  allEntries, isPrerelease, isExtensionPack, CATEGORY_ICONS,
   type MarketplaceEntry,
 } from "./store";
 import { safeRenderMarkdown } from "./markdown";
@@ -22,11 +22,20 @@ export function ExtensionDetail(props: {
 }) {
   const manifest = props.entry.item.manifest;
   const isBundled = props.entry.repoUrl === null;
-  const installed = () => installedIds().has(manifest.id);
   const isPack = isExtensionPack(manifest);
-  const updateAvailable = () => installed() && !isBundled && hasUpdate(props.entry);
   // available === false means stub/WIP — no .sinxt exists yet. Absent means available.
   const needsHost = !isPack && !!manifest.main && manifest.available === false;
+
+  // Version-aware install state: compare selected version to what's actually installed.
+  const installedRecord = () => installedExtensions().find(r => r.id === manifest.id);
+  const installed = () => !!installedRecord();
+  const installedVersionTag = () => {
+    const r = installedRecord();
+    return r ? `v${r.manifest.version}` : null;
+  };
+  const selectedVersionIsInstalled = () => installedVersionTag() === selectedVersion();
+  // The install button should appear when nothing is installed OR a different version is selected.
+  const showInstallBtn = () => !isBundled && !needsHost && !isPack && !selectedVersionIsInstalled();
 
   // README: fetch on demand; undefined = loading, null = not found, string = content
   const [readmeContent, setReadmeContent] = createSignal<string | null | undefined>(undefined);
@@ -172,33 +181,7 @@ export function ExtensionDetail(props: {
           <div class="mkt-detail-name">{manifest.name}</div>
           <div class="mkt-detail-pub-row">
             <span class="mkt-detail-pub">{manifest.publisher}</span>
-            <Show
-              when={manifest.main && (availableTags().length > 1 || tagsLoading())}
-              fallback={<span class="mkt-detail-pub"> · v{manifest.version}</span>}
-            >
-              <select
-                class="mkt-version-select"
-                value={selectedVersion()}
-                disabled={tagsLoading()}
-                onChange={(e) => setSelectedVersion(e.currentTarget.value)}
-              >
-                <Show when={tagsLoading()}>
-                  <option disabled>Loading versions…</option>
-                </Show>
-                <For each={availableTags()}>
-                  {(tag) => {
-                    const installedVersion = installedIds().has(manifest.id)
-                      ? `v${manifest.version}`
-                      : null;
-                    return (
-                      <option value={tag}>
-                        {tag}{tag === installedVersion ? " (installed)" : ""}
-                      </option>
-                    );
-                  }}
-                </For>
-              </select>
-            </Show>
+            <span class="mkt-detail-pub"> · v{manifest.version}</span>
           </div>
           <div class="mkt-detail-cats">
             <For each={manifest.categories}>
@@ -215,26 +198,45 @@ export function ExtensionDetail(props: {
         <Show when={isBundled}>
           <div class="mkt-detail-bundled-note">Bundled with Sindri — always available</div>
         </Show>
-        <Show when={!isBundled && !needsHost && !isPack && !installed()}>
-          <button
-            class="settings-btn-primary mkt-install-btn"
-            disabled={props.installing}
-            onClick={() => props.onInstall(selectedVersion())}
-          >
-            {props.installing ? "Installing…" : "Install"}
-          </button>
-        </Show>
-        <Show when={!isBundled && !needsHost && !isPack && installed()}>
+        <Show when={!isBundled && !needsHost && !isPack}>
           <div class="mkt-installed-row">
-            <span class="mkt-installed-label">✓ Installed</span>
-            <Show when={updateAvailable()}>
+            {/* Version selector — inline with the action buttons for code extensions */}
+            <Show when={manifest.main && (availableTags().length > 1 || tagsLoading())}>
+              <select
+                class="mkt-version-select"
+                value={selectedVersion()}
+                disabled={props.installing || tagsLoading()}
+                onChange={(e) => setSelectedVersion(e.currentTarget.value)}
+              >
+                <For each={availableTags()}>
+                  {(tag) => (
+                    <option value={tag}>
+                      {tag}{tag === installedVersionTag() ? " ✓" : ""}
+                    </option>
+                  )}
+                </For>
+              </select>
+            </Show>
+
+            <Show when={selectedVersionIsInstalled()}>
+              <span class="mkt-installed-label">✓ Installed</span>
+            </Show>
+
+            <Show when={showInstallBtn()}>
               <button
                 class="settings-btn-primary"
                 disabled={props.installing}
                 onClick={() => props.onInstall(selectedVersion())}
-              >{props.installing ? "Updating…" : "Update"}</button>
+              >
+                {props.installing
+                  ? (installed() ? "Switching…" : "Installing…")
+                  : (installed() ? `Switch to ${selectedVersion()}` : "Install")}
+              </button>
             </Show>
-            <button class="settings-btn-secondary" onClick={props.onUninstall}>Uninstall</button>
+
+            <Show when={installed()}>
+              <button class="settings-btn-secondary" onClick={props.onUninstall}>Uninstall</button>
+            </Show>
           </div>
         </Show>
         <Show when={!isBundled && isPack && !packAllInstalled()}>
