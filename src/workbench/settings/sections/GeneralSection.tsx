@@ -24,14 +24,11 @@ export function GeneralSection() {
           label="Auto save"
           description="Automatically save files after a short delay. When disabled, use ⌘S / Ctrl+S."
         >
-          <label class="settings-toggle-row">
-            <input
-              type="checkbox"
-              checked={autoSave()}
-              onChange={(e) => setConfig("editor.autoSave", e.currentTarget.checked)}
-            />
-            <span>{autoSave() ? "Enabled" : "Disabled"}</span>
-          </label>
+          <input
+            type="checkbox"
+            checked={autoSave()}
+            onChange={(e) => setConfig("editor.autoSave", e.currentTarget.checked)}
+          />
         </SettingsRow>
         <Show when={autoSave()}>
           <SettingsRow

@@ -419,6 +419,7 @@ globalThis.sindri = {
                 // The webview handle the extension receives in resolveCustomEditor.
                 let _html = '';
                 let _htmlEmitted = false;
+                let _isDirty = false;
                 let _inboundHandler = null;
                 const webview = {
                     get html() { return _html; },
@@ -432,7 +433,12 @@ globalThis.sindri = {
                     postMessage: _emit,
                     onMessage(handler) {
                         _inboundHandler = handler;
-                    }
+                    },
+                    get isDirty() { return _isDirty; },
+                    set isDirty(v) {
+                        _isDirty = !!v;
+                        sindri.events.emit("__sindri.ui.editorDirty:" + instanceId, JSON.stringify(_isDirty));
+                    },
                 };
 
                 // Route inbound iframe messages → provider.onMessage

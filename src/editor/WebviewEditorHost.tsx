@@ -3,7 +3,7 @@
 // On mount, triggers resolveCustomEditor via ext_dispatch_event if HTML not yet available.
 import { onCleanup, onMount, Show } from "solid-js";
 import { getCustomEditorHtml, registerCustomEditorHtml, removeCustomEditorHtml, onCustomEditorRefresh } from "./custom-editor-store";
-import { registry } from "./buffers";
+import { registry, setBufferDirty } from "./buffers";
 import { listenExtEvent, dispatch } from "../extensions/host";
 
 // Shared with WebviewPanelHost — injected into every webview before </head>.
@@ -136,12 +136,22 @@ export function WebviewEditorHost(props: Props) {
 
     window.addEventListener("message", handleMessage);
 
+    // Dirty state from extension — update the buffer's dirty flag.
+    let unlistenDirty: (() => void) | undefined;
+    listenExtEvent(`__sindri.ui.editorDirty:${props.instanceId}`, (payload) => {
+      const isDirty = payload === "true" || payload === JSON.stringify(true);
+      setBufferDirty(props.bufferId, isDirty);
+    }).then((fn) => { unlistenDirty = fn; });
+
     onCleanup(() => {
       window.removeEventListener("message", handleMessage);
       unlisten?.();
       unlistenHtml?.();
       unlistenRegistered?.();
+      unlistenDirty?.();
       unsubRefresh();
+      // Clear dirty when the tab closes.
+      setBufferDirty(props.bufferId, false);
       removeCustomEditorHtml(props.instanceId);
     });
   });

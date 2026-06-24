@@ -8,7 +8,8 @@
 // would overwrite the persisted session with empty state.
 import { createRoot, createEffect } from "solid-js";
 import { workspace, setFolder } from "../workspace/store";
-import { groupStore, openOrActivatePathInActiveGroup } from "./groups";
+import { groupStore, openOrActivatePathInActiveGroup, openCustomEditorInActiveGroup } from "./groups";
+import { matchDefaultCustomEditor } from "./custom-editor-registry";
 import { registry } from "./buffers";
 import { openFilePath, isTauri } from "../lib/tauri";
 
@@ -73,9 +74,15 @@ export async function restoreSession(): Promise<void> {
 
   for (const path of toOpen) {
     try {
-      const opened = await openFilePath(path);
-      if (opened?.path) {
-        openOrActivatePathInActiveGroup(opened.path, opened.name, opened.contents);
+      const customEditor = matchDefaultCustomEditor(path);
+      if (customEditor) {
+        const name = path.split(/[/\\]/).pop() ?? path;
+        openCustomEditorInActiveGroup(path, name, customEditor.viewType);
+      } else {
+        const opened = await openFilePath(path);
+        if (opened?.path) {
+          openOrActivatePathInActiveGroup(opened.path, opened.name, opened.contents);
+        }
       }
     } catch {
       // File moved or deleted — skip silently.

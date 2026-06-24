@@ -44,6 +44,7 @@ declare interface SindriCommands {
 
 declare interface SindriEnvFs {
   read(path: string): Promise<string>;
+  write(path: string, content: string): Promise<void>;
   glob(pattern: string): Promise<string[]>;
   exists(path: string): Promise<boolean>;
 }
@@ -136,6 +137,8 @@ declare interface CustomDocument {
 declare interface EditorWebview {
   /** Set to render: the full HTML document for this editor instance. */
   html: string;
+  /** Set to true when the document has unsaved changes; false after saving. */
+  isDirty: boolean;
   /** Send a message into the webview iframe. */
   postMessage(msg: unknown): void;
   /** Register a handler for messages posted from the webview iframe. */
