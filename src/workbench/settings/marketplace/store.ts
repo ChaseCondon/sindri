@@ -16,6 +16,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { isTauri } from "../../../lib/tauri";
 import { rebroadcastActiveEditor } from "../../../editor/editor-state-bridge";
 import { removeCustomEditorRegistrationsByExtId } from "../../../editor/custom-editor-registry";
+import { refreshCustomEditorsByViewType } from "../../../editor/custom-editor-store";
 import bundledExtensions from "../../../../core-extensions/bundled-extensions.json";
 
 // ---------------------------------------------------------------------------
@@ -304,6 +305,10 @@ export async function doInstall(entry: MarketplaceEntry, versionOverride?: strin
         installExtension(id, repoUrl, item.folderPath, effectiveManifest, sinxtPath);
       }
       await activateExtensionFromSinxt(sinxtPath, effectiveManifest);
+      // Refresh any open custom editor tabs so they get the new version's HTML.
+      for (const ce of (effectiveManifest.contributes as { customEditors?: { viewType: string }[] } | undefined)?.customEditors ?? []) {
+        refreshCustomEditorsByViewType(ce.viewType);
+      }
       return true;
     }
     console.error(`[Marketplace] failed to download .sinxt for ${id}`);

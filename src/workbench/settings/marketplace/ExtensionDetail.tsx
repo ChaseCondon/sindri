@@ -37,6 +37,33 @@ export function ExtensionDetail(props: {
   // The install button should appear when nothing is installed OR a different version is selected.
   const showInstallBtn = () => !isBundled && !needsHost && !isPack && !selectedVersionIsInstalled();
 
+  // Compare two semver strings (with or without "v" prefix). Returns 1, -1, or 0.
+  function semverCmp(a: string, b: string): number {
+    const parse = (v: string) => (v.startsWith("v") ? v.slice(1) : v).split(".").map(Number);
+    const [ap, bp] = [parse(a), parse(b)];
+    for (let i = 0; i < 3; i++) {
+      if ((ap[i] ?? 0) > (bp[i] ?? 0)) return 1;
+      if ((ap[i] ?? 0) < (bp[i] ?? 0)) return -1;
+    }
+    return 0;
+  }
+
+  const installBtnLabel = () => {
+    if (props.installing) return installed() ? "Switching…" : "Installing…";
+    const sel = selectedVersion();
+    const inst = installedVersionTag();
+    if (!inst) return `Install ${sel}`;
+    const cmp = semverCmp(sel, inst);
+    if (cmp > 0) return `Upgrade to ${sel}`;
+    if (cmp < 0) return `Downgrade to ${sel}`;
+    return `Reinstall ${sel}`;
+  };
+
+  // "Update to latest" shortcut: shown when installed version is behind the marketplace latest.
+  const latestVersion = `v${manifest.version}`;
+  const updateToLatestAvailable = () =>
+    installed() && !!installedVersionTag() && semverCmp(latestVersion, installedVersionTag()!) > 0;
+
   // README + CHANGELOG: fetch on demand; undefined = loading, null = not found, string = content
   const [readmeContent, setReadmeContent] = createSignal<string | null | undefined>(undefined);
   const [changelogContent, setChangelogContent] = createSignal<string | null | undefined>(undefined);
@@ -235,15 +262,24 @@ export function ExtensionDetail(props: {
               <span class="mkt-installed-label">✓ Installed</span>
             </Show>
 
-            <Show when={showInstallBtn()}>
+            <Show when={updateToLatestAvailable() && selectedVersion() !== latestVersion}>
               <button
                 class="settings-btn-primary"
                 disabled={props.installing}
+                onClick={() => props.onInstall(latestVersion)}
+                title={`Install the latest version (${latestVersion})`}
+              >
+                {props.installing ? "Updating…" : `Update to ${latestVersion}`}
+              </button>
+            </Show>
+
+            <Show when={showInstallBtn()}>
+              <button
+                class="settings-btn-secondary"
+                disabled={props.installing}
                 onClick={() => props.onInstall(selectedVersion())}
               >
-                {props.installing
-                  ? (installed() ? "Switching…" : "Installing…")
-                  : (installed() ? `Switch to ${selectedVersion()}` : "Install")}
+                {installBtnLabel()}
               </button>
             </Show>
 
