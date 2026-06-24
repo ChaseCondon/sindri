@@ -99,10 +99,10 @@ export function MarketplaceSection() {
     return repo?.developerMode ?? false;
   };
 
-  async function handleInstall(e: MarketplaceEntry) {
+  async function handleInstall(e: MarketplaceEntry, versionOverride?: string) {
     setInstalling(e.item.manifest.id);
     setInstallFailed(null);
-    const ok = await doInstall(e);
+    const ok = await doInstall(e, versionOverride);
     setInstalling(null);
     if (!ok) setInstallFailed(e.item.manifest.id);
   }
@@ -331,7 +331,7 @@ export function MarketplaceSection() {
                       entry={me}
                       installing={installing() === me.item.manifest.id}
                       installFailed={installFailed() === me.item.manifest.id}
-                      onInstall={() => handleInstall(me)}
+                      onInstall={(v) => handleInstall(me, v)}
                       onUninstall={() => doUninstall(me)}
                       onNavigate={navigateTo}
                     />

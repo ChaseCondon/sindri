@@ -1,6 +1,6 @@
 // Extension detail pane — ADR-0020 §3
-import { createSignal, createEffect, createMemo, For, Show, onCleanup } from "solid-js";
-import { rawFileUrl } from "../../../extensions/registry-client";
+import { createSignal, createEffect, createMemo, For, Show, onCleanup, onMount } from "solid-js";
+import { rawFileUrl, fetchAvailableVersions } from "../../../extensions/registry-client";
 import { getThemeDef, setUiTheme, setIconTheme, setUiPack } from "../../../theme/registry";
 import type { ThemeDef } from "../../../theme/tokens";
 import { registryRepos, installedIds, liveThemePreview, setPreviewThemeDef } from "../store";
@@ -16,7 +16,7 @@ export function ExtensionDetail(props: {
   entry: MarketplaceEntry;
   installing: boolean;
   installFailed: boolean;
-  onInstall: () => void;
+  onInstall: (version?: string) => void;
   onUninstall: () => void;
   onNavigate: (entry: MarketplaceEntry) => void;
 }) {
@@ -41,17 +41,29 @@ export function ExtensionDetail(props: {
       .catch(() => setReadmeContent(null));
   });
 
-  // Available version tags — filter pre-release based on the repo's showPrerelease setting
-  const availableTags = () => {
-    const tags = props.entry.item.tags ?? [];
-    if (!props.entry.repoUrl) return tags;
-    const repo = registryRepos().find((r) => r.url === props.entry.repoUrl);
-    const showPre = repo?.showPrerelease ?? false;
-    return showPre ? tags : tags.filter((t) => !isPrerelease(t));
-  };
+  // Available version tags — fetched from GitHub Releases on mount.
+  // Seeded with the current manifest version so the dropdown is immediately usable.
+  const [fetchedTags, setFetchedTags] = createSignal<string[]>([`v${manifest.version}`]);
+  const [tagsLoading, setTagsLoading] = createSignal(false);
+
+  onMount(() => {
+    const { repoUrl } = props.entry;
+    if (!repoUrl || !manifest.main) return; // only code extensions have sinxt versions
+    setTagsLoading(true);
+    fetchAvailableVersions(manifest.id, repoUrl)
+      .then(tags => {
+        const repo = registryRepos().find((r) => r.url === repoUrl);
+        const showPre = repo?.showPrerelease ?? false;
+        const filtered = showPre ? tags : tags.filter(t => !isPrerelease(t));
+        if (filtered.length > 0) setFetchedTags(filtered);
+      })
+      .finally(() => setTagsLoading(false));
+  });
+
+  const availableTags = () => fetchedTags();
 
   const [selectedVersion, setSelectedVersion] = createSignal(
-    availableTags()[0] ?? manifest.version
+    availableTags()[0] ?? `v${manifest.version}`
   );
 
   // Live preview: when this is a colour theme + liveThemePreview is on, fetch + apply theme
@@ -160,14 +172,30 @@ export function ExtensionDetail(props: {
           <div class="mkt-detail-name">{manifest.name}</div>
           <div class="mkt-detail-pub-row">
             <span class="mkt-detail-pub">{manifest.publisher}</span>
-            <Show when={availableTags().length > 1} fallback={<span class="mkt-detail-pub"> · v{manifest.version}</span>}>
+            <Show
+              when={manifest.main && (availableTags().length > 1 || tagsLoading())}
+              fallback={<span class="mkt-detail-pub"> · v{manifest.version}</span>}
+            >
               <select
                 class="mkt-version-select"
                 value={selectedVersion()}
+                disabled={tagsLoading()}
                 onChange={(e) => setSelectedVersion(e.currentTarget.value)}
               >
+                <Show when={tagsLoading()}>
+                  <option disabled>Loading versions…</option>
+                </Show>
                 <For each={availableTags()}>
-                  {(tag) => <option value={tag}>{tag}</option>}
+                  {(tag) => {
+                    const installedVersion = installedIds().has(manifest.id)
+                      ? `v${manifest.version}`
+                      : null;
+                    return (
+                      <option value={tag}>
+                        {tag}{tag === installedVersion ? " (installed)" : ""}
+                      </option>
+                    );
+                  }}
                 </For>
               </select>
             </Show>
@@ -191,7 +219,7 @@ export function ExtensionDetail(props: {
           <button
             class="settings-btn-primary mkt-install-btn"
             disabled={props.installing}
-            onClick={props.onInstall}
+            onClick={() => props.onInstall(selectedVersion())}
           >
             {props.installing ? "Installing…" : "Install"}
           </button>
@@ -203,7 +231,7 @@ export function ExtensionDetail(props: {
               <button
                 class="settings-btn-primary"
                 disabled={props.installing}
-                onClick={props.onInstall}
+                onClick={() => props.onInstall(selectedVersion())}
               >{props.installing ? "Updating…" : "Update"}</button>
             </Show>
             <button class="settings-btn-secondary" onClick={props.onUninstall}>Uninstall</button>
@@ -213,7 +241,7 @@ export function ExtensionDetail(props: {
           <button
             class="settings-btn-primary mkt-install-btn"
             disabled={props.installing}
-            onClick={props.onInstall}
+            onClick={() => props.onInstall(selectedVersion())}
           >
             {props.installing ? "Installing pack…" : "Install Pack"}
           </button>

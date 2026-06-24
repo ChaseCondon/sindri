@@ -182,7 +182,7 @@ export async function fetchAllEntries(): Promise<MarketplaceEntry[]> {
 // Install
 // ---------------------------------------------------------------------------
 
-export async function doInstall(entry: MarketplaceEntry): Promise<boolean> {
+export async function doInstall(entry: MarketplaceEntry, versionOverride?: string): Promise<boolean> {
   const { item, repoUrl } = entry;
   const { contributes, id, extensionPack } = item.manifest;
 
@@ -277,7 +277,12 @@ export async function doInstall(entry: MarketplaceEntry): Promise<boolean> {
       }
     }
     const client = getRegistryClient();
-    const sinxtPath = await client.downloadExtension(item, item.manifest.version, repoUrl);
+    const targetVersion = versionOverride ?? item.manifest.version;
+    const isSpecificVersion = !!versionOverride && versionOverride !== item.manifest.version;
+    const sinxtPath = await client.downloadExtension(
+      item, targetVersion, repoUrl,
+      isSpecificVersion ? targetVersion : undefined,
+    );
     if (sinxtPath) {
       const isUpdate = installedExtensions().some((r) => r.id === id);
       if (isUpdate) {

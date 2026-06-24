@@ -20,7 +20,7 @@ export interface RegistryClient {
 
   // Download, install, and activate a specific extension version from a registry repo.
   // Returns the absolute path to the installed .sinxt file, or null on failure.
-  downloadExtension(entry: RegistryIndexEntry, version: string, repoUrl: string): Promise<string | null>;
+  downloadExtension(entry: RegistryIndexEntry, version: string, repoUrl: string, versionTag?: string): Promise<string | null>;
 }
 
 // ---------------------------------------------------------------------------
@@ -56,7 +56,7 @@ class BrowserRegistryClient implements RegistryClient {
     }
   }
 
-  async downloadExtension(_entry: RegistryIndexEntry, _version: string, _repoUrl: string): Promise<string | null> {
+  async downloadExtension(_entry: RegistryIndexEntry, _version: string, _repoUrl: string, _versionTag?: string): Promise<string | null> {
     return null;
   }
 }
@@ -94,21 +94,26 @@ class TauriRegistryClient implements RegistryClient {
     }
   }
 
-  async downloadExtension(entry: RegistryIndexEntry, version: string, repoUrl: string): Promise<string | null> {
+  async downloadExtension(entry: RegistryIndexEntry, version: string, repoUrl: string, versionTag?: string): Promise<string | null> {
     const { id } = entry.manifest;
-    const assetName = `${id}-${version}.sinxt`;
+    // Strip leading "v" for the filename (tags are "v0.2.2", filenames are "0.2.2")
+    const ver = version.startsWith("v") ? version.slice(1) : version;
+    const assetName = `${id}-${ver}.sinxt`;
 
-    // GitHub Release asset URLs always fail with CORS in Tauri WebView (redirect to
-    // release-assets.githubusercontent.com is blocked). Use the committed raw artifact directly.
-    const rawUrl = rawFileUrl(repoUrl, entry.folderPath, `dist/${assetName}`);
-    console.log(`[registry-client] downloadExtension: id=${id} version=${version} url=${rawUrl}`);
+    // If a specific version tag is requested, use it as the git ref so we get
+    // the exact sinxt that was committed at that release, not the current main.
+    const rawUrl = versionTag
+      ? toRawUrlAtRef(repoUrl, `${id}-${version}`, entry.folderPath, `dist/${assetName}`)
+      : rawFileUrl(repoUrl, entry.folderPath, `dist/${assetName}`);
+
+    console.log(`[registry-client] downloadExtension: id=${id} version=${ver} tag=${versionTag ?? "main"} url=${rawUrl}`);
     if (rawUrl) {
       const bytes = await fetchBytes(rawUrl);
       console.log(`[registry-client] fetchBytes: ${bytes ? bytes.length + " bytes" : "null (failed)"}`);
-      if (bytes) return installSinxtBytes(id, version, bytes);
+      if (bytes) return installSinxtBytes(id, ver, bytes);
     }
 
-    console.error(`[TauriRegistryClient] no installable .sinxt found for ${id}@${version}`);
+    console.error(`[TauriRegistryClient] no installable .sinxt found for ${id}@${ver}`);
     return null;
   }
 }
@@ -266,6 +271,32 @@ async function installSinxtBytes(id: string, version: string, bytes: Uint8Array)
   } catch (e) {
     console.error("[registry-client] install_sinxt failed:", e);
     return null;
+  }
+}
+
+// Build a raw URL at a specific ref (tag/branch/sha) instead of main.
+function toRawUrlAtRef(repoUrl: string, ref: string, folderPath: string, filePath: string): string | null {
+  const gh = repoUrl.match(/^https?:\/\/github\.com\/([^/]+\/[^/]+?)(\.git)?$/);
+  if (gh) return `https://raw.githubusercontent.com/${gh[1]}/${encodeURIComponent(ref)}/${folderPath}/${filePath}`;
+  return null;
+}
+
+// Fetch available released versions for an extension from GitHub Releases.
+// Returns tags sorted newest-first, e.g. ["v0.2.4","v0.2.3","v0.2.2"].
+export async function fetchAvailableVersions(extId: string, repoUrl: string): Promise<string[]> {
+  const gh = repoUrl.match(/^https?:\/\/github\.com\/([^/]+\/[^/]+?)(\.git)?$/);
+  if (!gh) return [];
+  try {
+    const res = await fetch(`https://api.github.com/repos/${gh[1]}/releases?per_page=100`, { cache: "no-cache" });
+    if (!res.ok) return [];
+    const releases = await res.json() as { tag_name: string; prerelease: boolean; draft: boolean }[];
+    const prefix = `${extId}-v`;
+    return releases
+      .filter(r => !r.draft && r.tag_name.startsWith(prefix))
+      .map(r => "v" + r.tag_name.slice(prefix.length))
+      .filter(v => /^v\d+\.\d+\.\d+/.test(v));
+  } catch {
+    return [];
   }
 }
 
