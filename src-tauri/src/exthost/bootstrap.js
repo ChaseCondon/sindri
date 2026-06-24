@@ -584,7 +584,12 @@ globalThis.sindri = {
         const _listeners = {};
 
         // Handle live updates from the frontend (fired whenever configStore.set() is called).
-        sindri.events.on("__sindri.config.changed", function(payload) {
+        // Cannot use sindri.events.on() here — we're inside the sindri object literal,
+        // so sindri is not yet defined. Use the internal events map directly instead.
+        if (!globalThis.__sindri_events.has("__sindri.config.changed")) {
+            globalThis.__sindri_events.set("__sindri.config.changed", []);
+        }
+        globalThis.__sindri_events.get("__sindri.config.changed").push(function(payload) {
             try {
                 const { key, value } = JSON.parse(payload);
                 (globalThis.__sindri_config_snapshot = globalThis.__sindri_config_snapshot || {})[key] = value;
