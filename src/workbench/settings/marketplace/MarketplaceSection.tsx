@@ -47,7 +47,9 @@ export function MarketplaceSection() {
 
   const searched = createMemo(() => {
     const q = search().trim();
-    let list = entries() ?? [];
+    // Use pre-cached allEntries while the resource is still loading so the list
+    // is never empty on first open (startup pre-fetch populates allEntries).
+    let list = entries() ?? allEntries();
     if (showUpdates()) return pendingUpdates();
     if (q) list = list.filter((e) => fuzzyMatch(q, e.item));
     if (showInstalled()) list = list.filter((e) => e.repoUrl === null || installedIds().has(e.item.manifest.id));

@@ -19,7 +19,7 @@ import { registerBuiltinIconThemes } from "./icons/manifest";
 import { registerBuiltinUiPack } from "./icons/ui-icons";
 import { applyTheme, validateSelections, themeList, iconThemeList, uiPackList, uiThemeId, iconThemeId, uiPackId, setUiTheme, setIconTheme, setUiPack, setUiThemeId, setIconThemeId, setUiPackId } from "./theme/registry";
 import { SettingsModal } from "./workbench/settings/SettingsModal";
-import { rehydrateInstalledExtensions } from "./workbench/settings/marketplace/store";
+import { rehydrateInstalledExtensions, fetchAllEntries } from "./workbench/settings/marketplace/store";
 import { initExtensionActivation } from "./extensions/activation";
 import { checkAndInstallUpdates, checkUpdatesOnly, pendingUpdateCount } from "./extensions/update-checker";
 import { startDevWatcher } from "./extensions/dev-watcher";
@@ -36,6 +36,11 @@ registerBuiltinThemes();
 registerBuiltinIconThemes();
 registerBuiltinUiPack();
 applyTheme();
+
+// Pre-populate marketplace cache so the tab is instant on first open.
+// The MarketplaceSection will still re-fetch when mounted (fresh data), but
+// allEntries() is available immediately for update counts + installed grid.
+fetchAllEntries().catch(() => {});
 
 // Re-register installed extensions, then silently auto-update any that have newer versions.
 rehydrateInstalledExtensions()
