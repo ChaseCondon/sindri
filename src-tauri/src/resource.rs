@@ -57,9 +57,11 @@ pub(crate) fn sindri_resource_response(
     tauri::http::Response::builder()
         .status(status)
         .header("content-type", content_type)
+        // Prevent WebKit from caching sinxt assets across extension updates.
+        // Without this, upgrading an extension leaves the old webview.js/css
+        // in the WebView URL cache even after the new sinxt is installed.
+        .header("cache-control", "no-store")
         .body(body)
-        // Builder only fails on invalid header values; content_type is a &'static str
-        // constant we control, so this invariant holds at all call sites.
         .expect("static content-type header is always a valid header value")
 }
 
