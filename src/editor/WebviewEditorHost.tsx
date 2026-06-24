@@ -3,7 +3,7 @@
 // On mount, triggers resolveCustomEditor via ext_dispatch_event if HTML not yet available.
 import { onCleanup, onMount, Show } from "solid-js";
 import { getCustomEditorHtml, registerCustomEditorHtml, removeCustomEditorHtml, onCustomEditorRefresh } from "./custom-editor-store";
-import { registry, setBufferDirty } from "./buffers";
+import { registry, setBufferDirty } from "./buffers"; // setBufferDirty used by dirty listener
 import { listenExtEvent, dispatch } from "../extensions/host";
 
 // Shared with WebviewPanelHost — injected into every webview before </head>.
@@ -150,9 +150,10 @@ export function WebviewEditorHost(props: Props) {
       unlistenRegistered?.();
       unlistenDirty?.();
       unsubRefresh();
-      // Clear dirty when the tab closes.
-      setBufferDirty(props.bufferId, false);
       removeCustomEditorHtml(props.instanceId);
+      // Do NOT call setBufferDirty here — closeBufferInGroup already called
+      // removeBuffer() before this cleanup fires, so writing to the store would
+      // recreate an orphaned stub entry that blocks future opens of the same file.
     });
   });
 
