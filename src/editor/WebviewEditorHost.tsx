@@ -74,7 +74,6 @@ export function WebviewEditorHost(props: Props) {
   }
 
   onMount(() => {
-    console.log(`[WebviewEditorHost] mount instanceId=${props.instanceId} viewType=${props.viewType}`);
 
     // Register ALL listeners before dispatching the request.
     // The editorHtml event can fire very quickly (extension has no async work before
@@ -86,16 +85,13 @@ export function WebviewEditorHost(props: Props) {
 
     // Dispatch only after editorHtml listener is confirmed subscribed.
     listenExtEvent(`__sindri.ui.editorHtml:${props.instanceId}`, (html) => {
-      console.log(`[WebviewEditorHost] received editorHtml instanceId=${props.instanceId} length=${html.length}`);
       registerCustomEditorHtml(props.instanceId, html);
     }).then((fn) => {
       unlistenHtml = fn;
       // NOW it is safe to request — we will not miss the response.
       if (!getCustomEditorHtml(props.instanceId)) {
-        console.log(`[WebviewEditorHost] dispatching editorOpenRequest viewType=${props.viewType}`);
         requestHtml();
       } else {
-        console.log(`[WebviewEditorHost] HTML already cached for instanceId=${props.instanceId}`);
       }
     });
 
@@ -104,7 +100,6 @@ export function WebviewEditorHost(props: Props) {
       try {
         const data = JSON.parse(payload) as { viewType: string };
         if (data.viewType === props.viewType && !getCustomEditorHtml(props.instanceId)) {
-          console.log(`[WebviewEditorHost] extension registered late — re-requesting`);
           requestHtml();
         }
       } catch { /* ignore malformed payload */ }
@@ -112,7 +107,6 @@ export function WebviewEditorHost(props: Props) {
 
     // Version-switch refresh: re-request after upgrade/downgrade.
     const unsubRefresh = onCustomEditorRefresh(props.viewType, () => {
-      console.log(`[WebviewEditorHost] version-switch refresh for instanceId=${props.instanceId}`);
       removeCustomEditorHtml(props.instanceId);
       requestHtml();
     });

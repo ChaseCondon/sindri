@@ -266,8 +266,6 @@ export async function activateExtensionFromSinxt(
  * because registerToolWindow preserves the persisted window position.
  */
 export function preRegisterManifestPanels(manifest: ExtensionManifest): void {
-  const ceCount = manifest.contributes?.customEditors?.length ?? 0;
-  console.log(`[sindri] preRegisterManifestPanels: id=${manifest.id} customEditors=${ceCount}`);
   for (const tv of manifest.contributes?.treeViews ?? []) {
     if (preRegisteredTreeViews.has(tv.id)) continue;
     preRegisteredTreeViews.add(tv.id);
@@ -283,7 +281,6 @@ export function preRegisterManifestPanels(manifest: ExtensionManifest): void {
   for (const ce of manifest.contributes?.customEditors ?? []) {
     if (preRegisteredCustomEditors.has(ce.viewType)) continue;
     preRegisteredCustomEditors.add(ce.viewType);
-    console.log(`[sindri] registering customEditor viewType=${ce.viewType} selector=${JSON.stringify(ce.selector)}`);
     addCustomEditorRegistration({
       viewType: ce.viewType,
       displayName: ce.displayName ?? ce.viewType,
@@ -365,7 +362,6 @@ export function initExtensionActivation(): void {
       priority?: "default" | "option";
       extId?: string;
     };
-    console.log(`[sindri] runtime editorRegistered: viewType=${data.viewType} preRegistered=${preRegisteredCustomEditors.has(data.viewType)}`);
     if (preRegisteredCustomEditors.has(data.viewType)) return;
     addCustomEditorRegistration({
       viewType: data.viewType,
