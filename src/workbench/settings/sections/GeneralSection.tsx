@@ -12,12 +12,26 @@ export function GeneralSection() {
     return opts;
   };
 
+  const autoUpdate = () => getConfig("extensions.autoUpdate") !== false; // default true
   const autoSave = () => !!getConfig("editor.autoSave");
   const autoSaveDelay = () => (getConfig("editor.autoSaveDelay") as number | undefined) ?? 1500;
 
   return (
     <div class="settings-section">
       <h2 class="settings-section-title">General</h2>
+
+      <SettingsGroup title="Extensions">
+        <SettingsRow
+          label="Auto-update extensions"
+          description="Download and install extension updates silently at startup. Disable to pin versions and update manually."
+        >
+          <input
+            type="checkbox"
+            checked={autoUpdate()}
+            onChange={(e) => setConfig("extensions.autoUpdate", e.currentTarget.checked)}
+          />
+        </SettingsRow>
+      </SettingsGroup>
 
       <SettingsGroup title="Saving">
         <SettingsRow

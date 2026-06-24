@@ -95,6 +95,14 @@ export const EDITOR_DECORATIONS_SCHEMA: ConfigurationSchema = {
 // ── Built-in schema: sindri.general ─────────────────────────────────────────
 
 export const GENERAL_SCHEMA: ConfigurationSchema = {
+  "extensions.autoUpdate": {
+    type: "boolean",
+    default: true,
+    groupTitle: "Extensions",
+    title: "Auto-update extensions",
+    description: "Automatically download and install extension updates at startup. Disable to manage versions manually.",
+    order: 1,
+  },
   "editor.autoSave": {
     type: "boolean",
     default: false,
