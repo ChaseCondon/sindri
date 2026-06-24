@@ -389,6 +389,22 @@
   padding: 2px 8px;
 }
 
+/* Neutral action button — same box as secondary but full text color (not dimmed).
+   Used for downgrade where we want intentional feel without the accent colour. */
+.settings-btn-neutral {
+  padding: 5px 14px;
+  font-size: 12px;
+  font-family: inherit;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  cursor: pointer;
+  height: auto;
+  transition: background 0.1s;
+}
+.settings-btn-neutral:hover { background: var(--bg-hover); }
+
 /* Extension Repositories */
 
 .settings-repo-list {
