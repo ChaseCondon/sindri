@@ -266,33 +266,40 @@ export function ExtensionDetail(props: {
               <span class="mkt-installed-label">✓ Installed</span>
             </Show>
 
+            {/* Installed version chip — visible when a different version is selected */}
+            <Show when={installed() && !selectedVersionIsInstalled()}>
+              <span class="mkt-installed-ver-chip">
+                Installed: {installedVersionTag()}
+              </span>
+            </Show>
+
             {/* 1. Action for the selected version — always leftmost */}
             <Show when={showInstallBtn()}>
               <button
-                class={selectedDir() === "upgrade" || selectedDir() === "install"
-                  ? "settings-btn-primary"
-                  : "settings-btn-neutral"}
+                class={selectedDir() === "downgrade"
+                  ? "settings-btn-rollback"
+                  : "settings-btn-primary"}
                 disabled={props.installing}
                 onClick={() => props.onInstall(selectedVersion())}
               >
                 {props.installing
-                  ? (selectedDir() === "downgrade" ? "Downgrading…" : "Upgrading…")
+                  ? (selectedDir() === "downgrade" ? "Rolling back…" : "Updating…")
                   : selectedDir() === "downgrade"
-                    ? `Downgrade to ${selectedVersion()}`
+                    ? `Rollback to ${selectedVersion()}`
                     : selectedDir() === "install"
                       ? `Install ${selectedVersion()}`
-                      : `Upgrade to ${selectedVersion()}`}
+                      : `Update to ${selectedVersion()}`}
               </button>
             </Show>
 
-            {/* 2. Upgrade-to-latest shortcut — only when installed is behind and dropdown isn't already there */}
+            {/* 2. Update-to-latest shortcut — only when installed is behind and dropdown isn't already there */}
             <Show when={showUpgradeToLatest()}>
               <button
                 class="settings-btn-primary"
                 disabled={props.installing}
                 onClick={() => props.onInstall(latestVersion)}
               >
-                {props.installing ? "Upgrading…" : `Upgrade to ${latestVersion}`}
+                {props.installing ? "Updating…" : `Update to ${latestVersion}`}
               </button>
             </Show>
 

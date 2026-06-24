@@ -114,6 +114,7 @@
   font-weight: 500;
   padding: 6px 14px;
   border: none;
+  border-radius: 0; /* override WebKit default border-radius on <button> */
   border-bottom: 2px solid transparent;
   background: transparent;
   color: var(--text-dim);
@@ -927,6 +928,12 @@
   margin-bottom: 14px;
 }
 
+.mkt-installed-ver-chip {
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
 .mkt-installed-label {
   font-size: 12px;
   color: var(--accent);
@@ -987,6 +994,7 @@
   font-family: inherit;
   background: transparent;
   border: none;
+  border-radius: 0; /* override WebKit default border-radius on <button> */
   border-bottom: 2px solid transparent;
   color: var(--text-dim);
   cursor: pointer;
