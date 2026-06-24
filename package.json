@@ -1,6 +1,6 @@
 {
   "name": "sindri",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "description": "A human-first, language-agnostic IDE.",
   "type": "module",

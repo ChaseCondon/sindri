@@ -1,0 +1,55 @@
+# Changelog
+
+## 1.0.0 (2026-06-24)
+
+
+### Features
+
+* initial commit — Sindri IDE ([ef09ce7](https://github.com/ChaseCondon/sindri/commit/ef09ce79a6b162cd2a6a336a6953d8a857106b66))
+* **marketplace/editor:** upgrade/downgrade labels, live refresh, startup race fix ([06c9447](https://github.com/ChaseCondon/sindri/commit/06c94476fb6146a45183f347e352f791a07498b3))
+* **marketplace:** changelog tab + version dropdown always shown for code extensions ([70dfbb1](https://github.com/ChaseCondon/sindri/commit/70dfbb17a41a0c832653637e802872f28ebd7f34))
+* **marketplace:** version picker — install/downgrade to any released version ([1265153](https://github.com/ChaseCondon/sindri/commit/1265153989ad27f5031e73be0607e34e9c4f1d7a))
+* **phase-1.5:** sindri-cli, sindri-core sidecar, editor/extension DX + ADRs 0033-0038 ([918a614](https://github.com/ChaseCondon/sindri/commit/918a614b9cb82f01a0485e4cf074e92f1028153b))
+* **phase-3:** terminal, split panes v0.2, custom editor surface (registerEditor) ([de319f8](https://github.com/ChaseCondon/sindri/commit/de319f869d2bc3748d55c7a420a7be90ad464f79))
+* **sindri.config:** reactive settings API for extensions (ADR-0023) ([534e5fc](https://github.com/ChaseCondon/sindri/commit/534e5fc1866251fc9fe899bbd0f2bac6aadd4e29))
+* **update-checker:** extensions.autoUpdate setting; deactivate-before-update; refresh open tabs ([6da9279](https://github.com/ChaseCondon/sindri/commit/6da9279d328b11df2a5df25c8e560a4db132448d))
+
+
+### Bug Fixes
+
+* **activity-bar,settings:** rewrite drag with insertion line; fix logs on disable ([264a093](https://github.com/ChaseCondon/sindri/commit/264a093a4a1bec3f94cc9d7dab39abffe558dd8f))
+* **activity-bar:** placeholder block drag indicator; visible divider ([e62b3f0](https://github.com/ChaseCondon/sindri/commit/e62b3f081fdd1083640f0f30b02b806dc06af264))
+* **activity-bar:** render-list drag with cached rects; icons shift to show drop position ([b7e0912](https://github.com/ChaseCondon/sindri/commit/b7e0912104c1fa1ba63a5ea278f8ecf9b957f2cb))
+* **activity-bar:** rewrite drag with absolute-positioned indicator, cached rects ([eae5960](https://github.com/ChaseCondon/sindri/commit/eae59602acd187006389d682544fc265799811d8))
+* **bootstrap:** remove double-emit of editorHtml; add setter log ([71f187f](https://github.com/ChaseCondon/sindri/commit/71f187f9638b433e1024aa3aadf9aafc1c7952e1))
+* **bootstrap:** sindri.config handler uses __sindri_events directly ([984322b](https://github.com/ChaseCondon/sindri/commit/984322b7b8dbcbe0a172798e998ba0cc0c37c0fe))
+* **custom-editor:** pre-register customEditors synchronously; fix type narrowing ([c180a0e](https://github.com/ChaseCondon/sindri/commit/c180a0e00d48ff506b2d3157f749f9e7088f2b45))
+* **custom-editor:** remove setBufferDirty from onCleanup — was recreating orphaned buffer stub ([ec2015d](https://github.com/ChaseCondon/sindri/commit/ec2015d04c9eade2968e607f06a896b23128a3ef))
+* drag always-visible divider, log startup, disable panel cleanup ([33a4ed0](https://github.com/ChaseCondon/sindri/commit/33a4ed007f97419af3e370007ee072616f8d30f6))
+* drag divider, log names, installed tab cards/enable-disable/dev-override ([563873a](https://github.com/ChaseCondon/sindri/commit/563873ae018e5d3d307439c11ffcaceea84f8633))
+* **drag:** capture on barRef so pointer events survive source button removal ([68b910a](https://github.com/ChaseCondon/sindri/commit/68b910a5b8034233a2af03571a30c6dda985da19))
+* **editor-bridge:** export rebroadcastActiveEditor; call it after all extensions activate ([b7e0912](https://github.com/ChaseCondon/sindri/commit/b7e0912104c1fa1ba63a5ea278f8ecf9b957f2cb))
+* **editor-bridge:** rebroadcastActiveEditor retries until buffer registry populated ([68b910a](https://github.com/ChaseCondon/sindri/commit/68b910a5b8034233a2af03571a30c6dda985da19))
+* **ext-logs:** enable text selection in log output area ([1052513](https://github.com/ChaseCondon/sindri/commit/1052513c3552f934e5fc62e04de843aae48a2cde))
+* graceful extension deactivation + full uninstall cleanup + drag fix ([d1b4a33](https://github.com/ChaseCondon/sindri/commit/d1b4a33c0552d681a7d0597ee79939ef2b04c4d8))
+* **marketplace:** clean up version action button ordering, naming, and styling ([281f181](https://github.com/ChaseCondon/sindri/commit/281f1810582e10425aa88a1fa1f0ba5fc07b97ac))
+* **marketplace:** clear custom editor registry on uninstall; deactivate before update ([f7b5078](https://github.com/ChaseCondon/sindri/commit/f7b5078904dd3105e67c53ed3cfa8efd3a485229))
+* **marketplace:** convert _allEntries to signal so Update button appears reactively; ([b7e0912](https://github.com/ChaseCondon/sindri/commit/b7e0912104c1fa1ba63a5ea278f8ecf9b957f2cb))
+* **marketplace:** filter pack members from top-level list, fix install status accuracy ([ff468e5](https://github.com/ChaseCondon/sindri/commit/ff468e582db03d8f28e33daf505829b10c5c5ccf))
+* **marketplace:** pre-cache entries at startup; equal font-weight on all action buttons ([13eab29](https://github.com/ChaseCondon/sindri/commit/13eab29def6906965f9a00c16f677c85ceadd275))
+* **marketplace:** restore all entries visibility and fix category/navigation ([4f42b47](https://github.com/ChaseCondon/sindri/commit/4f42b47f42672eb980bd076a0a53048be6c2d05e))
+* **marketplace:** uninstall deactivates runtime; install never hangs ([930a23c](https://github.com/ChaseCondon/sindri/commit/930a23c825066e3e32eadc759d1211bd7b0cee98))
+* **marketplace:** Update/Rollback labels, rollback amber style, installed version chip, tab border-radius ([08a0dd4](https://github.com/ChaseCondon/sindri/commit/08a0dd44ceccd9ed6c38cbd1e8515174f5e681ea))
+* **marketplace:** use available flag to gate install button for WIP extensions ([d9ec43b](https://github.com/ChaseCondon/sindri/commit/d9ec43be9606e4289faab446636df2112406aa24))
+* **marketplace:** use updateInstalledExtension when updating already-installed extension ([dad92d2](https://github.com/ChaseCondon/sindri/commit/dad92d21efaf48001e72f961d278fa2f690c48c5))
+* **marketplace:** version dropdown matches settings-btn-secondary height and style ([f116355](https://github.com/ChaseCondon/sindri/commit/f116355ead8679419ed0ba92ef6dbe0802ce0627))
+* **marketplace:** version picker UX — selector in action row, version-aware install state ([75a9a94](https://github.com/ChaseCondon/sindri/commit/75a9a944510c93832ba7f85a97a57b3279fb41f5))
+* **marketplace:** version switch works + dropdown height matches buttons ([ecafcdc](https://github.com/ChaseCondon/sindri/commit/ecafcdcf47fe9f9514aecfd6d9f69dc68f45a142))
+* **resource,build:** sindri-resource:// for dev extensions; canonicalize in ext build ([1fc28b4](https://github.com/ChaseCondon/sindri/commit/1fc28b4659f9278bcceb1c5876da1ba718ef5050))
+* **resource:** add Cache-Control: no-store to sindri-resource:// responses ([ecb046b](https://github.com/ChaseCondon/sindri/commit/ecb046b8bfb75c6e7291c025399a0f8a6a03629a))
+* **runtime+ui:** timer/TextEncoder polyfills, uninstall, installed card view, icon fix ([7e11311](https://github.com/ChaseCondon/sindri/commit/7e11311d8e7d053fe01399462e13d711ee0e3503))
+* session restore routing, dirty+save for custom editors, autosave toggle cleanup, button heights ([3396b9f](https://github.com/ChaseCondon/sindri/commit/3396b9fca6aea98e284edfe254c3a43a79c89b36))
+* **sindri-cli:** canonicalize ext_dir before generating esbuild script ([b5c59f3](https://github.com/ChaseCondon/sindri/commit/b5c59f3c0e486b529c62b39fa5e5651fe543ca61))
+* **startup:** pre-register manifest panels synchronously so icons appear on first render ([b7e0912](https://github.com/ChaseCondon/sindri/commit/b7e0912104c1fa1ba63a5ea278f8ecf9b957f2cb))
+* **syntax:** remove unused Language import; suppress dead_code on extensions field ([55ebdbe](https://github.com/ChaseCondon/sindri/commit/55ebdbe07641fbeb8d5529d0cfd57b624e2ef28f))
+* **workbench+extensions:** sidebar exclusive open, uninstall cleanup, popup dock, icons, CORS fix ([91c155b](https://github.com/ChaseCondon/sindri/commit/91c155bd21527c009b432cc02d04942787a83bed))
